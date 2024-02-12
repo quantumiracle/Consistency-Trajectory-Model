@@ -14,29 +14,32 @@ update the weights of the consistency model and the diffusion model.
 
 if __name__ == "__main__":
 
-    device = 'cpu'
-    n_sampling_steps = 10
-    use_pretraining = True
+    device = 'cuda'  # 'cpu'
+    n_sampling_steps = 20
+    use_pretraining = False
     cm = ConsistencyTrajectoryModel(
         data_dim=1,
         cond_dim=1,
         sampler_type='euler',
-        lr=4e-4,
+        lr=1e-3,  # 4e-4
         sigma_data=0.5,
         sigma_min=0.05,
+        sigma_max=1, # 2
         solver_type='heun',
-        sigma_max=2,
         n_discrete_t=18,
         conditioned=False,
         diffusion_lambda= 1,
+        use_gan=True,
+        gan_lambda= 1,
         device=device,
         rho=7,
         ema_rate=0.999,
+        n_sampling_steps=n_sampling_steps,
         use_teacher=use_pretraining,
     )
-    train_epochs = 2002
+    train_epochs = 2000
     # chose one of the following toy tasks: 'three_gmm_1D' 'uneven_two_gmm_1D' 'two_gmm_1D' 'single_gaussian_1D'
-    data_manager = DataGenerator('three_gmm_1D')
+    data_manager = DataGenerator('two_gmm_1D')
     samples, cond = data_manager.generate_samples(5000)
     samples = samples.reshape(-1, 1).to(device)
     pbar = tqdm(range(train_epochs))
@@ -67,9 +70,8 @@ if __name__ == "__main__":
     # Train the consistency trajectory model either simultanously with the diffusion model or after pretraining
     for i in range(train_epochs):
         cond = cond.reshape(-1, 1).to(device)        
-        loss, cmt_loss, diffusion_loss, gan_loss = cm.train_step(samples, cond)
-        
-        pbar.set_description(f"Step {i}, Loss: {loss:.8f}, CMT Loss: {cmt_loss:.8f}, Diff Loss: {diffusion_loss:.8f}, GAN Loss: {gan_loss:.8f}")
+        loss, cmt_loss, diffusion_loss, gan_loss = cm.train_step(samples, cond, i, train_epochs)
+        pbar.set_description(f"Step {i}, Loss: {loss:.4f}, CMT Loss: {cmt_loss:.4f}, Diff Loss: {diffusion_loss:.4f}, GAN Loss: {gan_loss:.4f}")
         pbar.update(1)
     
     # Plotting the results of the training
@@ -92,6 +94,7 @@ if __name__ == "__main__":
         200, 
         train_epochs, 
         sampling_method='onestep', 
+        n_sampling_steps=n_sampling_steps,
         x_range=[-4, 4], 
         save_path='./plots/ctm'
     )

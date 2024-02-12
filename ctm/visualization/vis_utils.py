@@ -1,4 +1,4 @@
-
+import os
 import torch 
 import numpy as np
 from torch.distributions import Normal
@@ -143,6 +143,7 @@ def plot_main_figure(
     ax2.tick_params(axis='y', labelsize=16)
     # ax2.set_yticks('log')
     plt.subplots_adjust(hspace=0)
+    os.makedirs(save_path, exist_ok=True)
     plt.savefig(save_path + '/cm_' + sampling_method + f'_epochs_{train_epochs}.png', bbox_inches='tight', pad_inches=0.1)    
     
     print('Plot saved!')

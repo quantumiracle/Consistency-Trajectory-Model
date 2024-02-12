@@ -9,7 +9,7 @@ from tqdm import trange
 import einops
 
 from .utils import *
-from .models.ctm_mlp import ConsistencyTrajectoryNetwork
+from .models.ctm_mlp import ConsistencyTrajectoryNetwork, Discriminator
 
 
 def ema_eval_wrapper(func):
@@ -55,6 +55,7 @@ class ConsistencyTrajectoryModel(nn.Module):
             conditioned: bool,
             device: str,
             use_teacher: bool = False,
+            use_gan: bool = False,
             solver_type: str = 'heun',
             n_discrete_t: int = 20,
             lr: float = 1e-4,
@@ -66,7 +67,7 @@ class ConsistencyTrajectoryModel(nn.Module):
             sigma_sample_density_type: str = 'loglogistic',
     ) -> None:
         super().__init__()
-        self.use_gan = False
+        self.use_gan = use_gan
         self.ema_rate = ema_rate
         self.diffusion_lambda = diffusion_lambda
         self.gan_lambda = gan_lambda
@@ -102,6 +103,9 @@ class ConsistencyTrajectoryModel(nn.Module):
         self.sigma_sample_density_type = sigma_sample_density_type
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=lr)
         self.epochs = 0
+        self.discriminator = Discriminator(input_dim=data_dim, hidden_dim=256, num_hidden_layers=4, output_dim=1, dropout_rate=0.0).to(device)
+        self.discriminator_optimizer = torch.optim.Adam(self.discriminator.parameters(), lr=lr)
+        self.criterion = nn.BCELoss()
         
     def diffusion_wrapper(self, model, x, cond, t, s):
         """
@@ -130,7 +134,6 @@ class ConsistencyTrajectoryModel(nn.Module):
         c_in = append_dims(c_in, x.ndim)
         c_out = append_dims(c_out, x.ndim)
         c_skip = append_dims(c_skip, x.ndim)
-
         diffusion_output = model(c_in * x, cond, t, s)
         scaled_output = c_out * diffusion_output + c_skip * x
         
@@ -183,7 +186,55 @@ class ConsistencyTrajectoryModel(nn.Module):
         # You can optionally load the updated state dict into the target model, if necessary
         # self.target_model.load_state_dict(target_state_dict)
 
-    def train_step(self, x, cond):
+    # use original
+    # def train_step(self, x, cond):
+    #     """
+    #     Main training step method to compute the loss for the Consistency Trajectory Model.
+    #     The loss consists of three parts: the consistency loss, the diffusion loss, and the GAN loss (optional).
+    #     The first part is similar to Song et al. 23 and the second part is similar to Karras et al. 2022.
+
+    #     Args:
+
+    #     Returns:
+
+    #     """
+    #     self.model.train()
+    #     t = self.make_sample_density()(shape=(len(x),), device=self.device)
+    #     noise = torch.randn_like(x)
+    #     # next we sample s in range of [0, t]
+    #     s = torch.rand_like(t) * t
+    #     # next we sample u in range of (s, t]
+    #     u = torch.rand_like(t) * (t - s) + s
+    #     # get the noise samples
+    #     x_t = x + noise * append_dims(t, x.ndim)
+    #     # use the solver if we have a teacher model otherwise use the euler method
+    #     solver_target = self.solver(x_t, cond, t, u)
+
+    #     # compute the cmt consistency loss
+    #     cmt_loss = self.ctm_loss(x_t, cond, t, s, u, solver_target)
+        
+    #     # compute the diffusion loss
+    #     diffusion_loss = self.diffusion_loss(x, x_t, cond, t)
+
+    #     # compute the GAN loss if chosen
+    #     if self.use_gan:
+    #         gan_loss = self.gan_loss(x_t, cond, t)
+    #     else:
+    #         gan_loss = 0
+
+    #     # compute the total loss
+    #     loss = cmt_loss + self.diffusion_lambda * diffusion_loss + self.gan_lambda * gan_loss
+
+    #     # perform the backward pass
+    #     self.optimizer.zero_grad()
+    #     loss.backward()
+    #     self.optimizer.step()
+    #     # update the ema weights
+    #     self._update_ema_weights()
+        
+    #     return loss, cmt_loss, diffusion_loss, gan_loss
+
+    def train_step(self, x, cond, train_step, max_steps):
         """
         Main training step method to compute the loss for the Consistency Trajectory Model.
         The loss consists of three parts: the consistency loss, the diffusion loss, and the GAN loss (optional).
@@ -196,7 +247,7 @@ class ConsistencyTrajectoryModel(nn.Module):
         # get the noise samples
         x_t = x + noise * append_dims(t_ctm, x.ndim)
         # use the solver if we have a teacher model otherwise use the euler method
-        solver_target = self.solver(x_t, cond, t_ctm, u)
+        solver_target = self.solver(x_t, cond, t_ctm, u).detach()
 
         # compute the cmt consistency loss
         cmt_loss = self.ctm_loss(x_t, cond, t_ctm, s, u, solver_target)
@@ -209,16 +260,21 @@ class ConsistencyTrajectoryModel(nn.Module):
             diffusion_loss = self.diffusion_loss(x, x_t_sm, cond, t_sm)
         else:
             diffusion_loss = 0
+
         # compute the GAN loss if chosen
         # not implemented yet
         if self.use_gan:
-            gan_loss = self.gan_loss(x_t, cond, x_t_sm)
+            gan_loss = self.gan_loss(x, x_t, cond, t_ctm)
+            if train_step < 0.3*max_steps: # warm-up, train discriminator only
+                gan_lambda = 0
+            else:
+                gan_lambda = self.gan_lambda
         else:
+            gan_lambda = 0
             gan_loss = 0
 
         # compute the total loss
-        
-        loss = cmt_loss + self.diffusion_lambda * diffusion_loss + self.gan_lambda * gan_loss
+        loss = cmt_loss + self.diffusion_lambda * diffusion_loss + gan_lambda * gan_loss
         
         # perform the backward pass
         self.optimizer.zero_grad()
@@ -226,8 +282,30 @@ class ConsistencyTrajectoryModel(nn.Module):
         self.optimizer.step()
         # update the ema weights
         self._update_ema_weights()
+
+        # self.target_model.load_state_dict(self.model.state_dict())  # improved techniques of CM for using no target (same as model)
         
         return loss, cmt_loss, diffusion_loss, gan_loss
+
+    def gan_loss(self, x, x_t, cond, t):
+        jump_target = einops.repeat(torch.tensor([0]), '1 -> (b 1)', b=len(x_t)).to(x_t.device)
+        ctm_pred = self.cmt_wrapper(self.model, x_t, cond, t, jump_target)
+
+        batch_size = x.shape[0]
+        real_labels = torch.ones(batch_size, 1).to(x.device)
+        fake_labels = torch.zeros(batch_size, 1).to(x.device)
+
+        # discriminator loss
+        self.discriminator_optimizer.zero_grad()
+        real_loss = self.criterion(self.discriminator(x), real_labels)
+        fake_loss = self.criterion(self.discriminator(ctm_pred.detach()), fake_labels)
+        discriminator_loss = real_loss + fake_loss
+        discriminator_loss.backward()
+        self.discriminator_optimizer.step()
+        
+        # generator loss
+        generator_loss = self.criterion(self.discriminator(ctm_pred), real_labels)
+        return generator_loss
     
     def sample_noise_levels(self, shape, N, device='cpu'):
         """
@@ -247,8 +325,9 @@ class ConsistencyTrajectoryModel(nn.Module):
         
         # Sample indices from this discretized range
         t = torch.randint(1, N, size=shape, device=device)
-        s = torch.round(torch.rand_like(t.to(torch.float32)) * t.to(torch.float32)).to(torch.int32)
-        u = torch.round(torch.rand_like(t.to(torch.float32)) * (t.to(torch.float32) -1  - s.to(torch.float32))+ s).to(torch.int32)
+        s = torch.round(torch.rand_like(t.to(torch.float32)) * t.to(torch.float32)).to(torch.int64).to(device)
+        u = torch.round(torch.rand_like(t.to(torch.float32)) * (t.to(torch.float32) -1  - s.to(torch.float32))+ s).to(torch.int64).to(device)
+
         # Use these indices to gather the noise levels from the discretized sigmas
         sigma_t = discretized_sigmas[t]
         sigma_s = discretized_sigmas[s]
@@ -303,22 +382,41 @@ class ConsistencyTrajectoryModel(nn.Module):
         Returns:
             torch.Tensor: Consistency loss tensor of shape [].
         """
-        jump_target = einops.repeat(torch.tensor([0]), '1 -> (b 1)', b=len(x_t))
+        ## TODO: zihan commented
+        jump_target = einops.repeat(torch.tensor([0]), '1 -> (b 1)', b=len(x_t)).to(s.device)
         # compute the cmt prediction: jump from t to s
         ctm_pred = self.cmt_wrapper(self.model, x_t, cond, t, s)
 
         # compute the cmt target prediction with ema parameters inside self.target_model: jump from u to s
-        # with torch.no_grad():
-        ctm_target = self.cmt_wrapper(self.target_model, solver_target, cond, u, s)
-        ctm_target_clean = self.cmt_wrapper(self.target_model, ctm_target, cond, s, jump_target)
+        with torch.no_grad():
+            ctm_target = self.cmt_wrapper(self.target_model, solver_target, cond, u, s)
+            ctm_target_clean = self.cmt_wrapper(self.target_model, ctm_target, cond, s, jump_target)
 
         # transform them into the clean data space by jumping without gradient from s to 0
         # for both predictions and comparing them in the clean data space
+        """
+        # Compute f(f(x)) with gradient tracking for the inside f only
+        inner_result = f(x)  # First application of f, gradients are tracked here
+        inner_result_detached = inner_result.detach().requires_grad_()  # Detach and enable grad for outer f
+        outer_result = f(inner_result_detached)  # Second application of f, gradients not tracked
+        to check if this is right (zihan)
+        """
         # with torch.no_grad():
-        ctm_pred_clean = self.cmt_wrapper(self.target_model, ctm_pred, cond, s, jump_target)
+        ctm_pred_clean = self.cmt_wrapper(self.target_model, ctm_pred, cond, s, jump_target)  # this one is better
+        # ctm_pred_clean = self.cmt_wrapper(copy.deepcopy(self.model), ctm_pred, cond, s, jump_target)
         
         # compute the cmt loss
         cmt_loss = torch.nn.functional.mse_loss(ctm_pred_clean, ctm_target_clean)
+
+        # # using previous code
+        # ctm_pred = self.cmt_wrapper(self.model, x_t, cond, t, s)
+
+        # # compute the cmt target prediction without gradient
+        # with torch.no_grad():
+        #     ctm_target = self.cmt_wrapper(self.target_model, solver_target, cond, u, s)
+
+        # # compute the cmt loss
+        # cmt_loss = torch.nn.functional.mse_loss(ctm_pred, ctm_target)
 
         return cmt_loss
 
@@ -518,7 +616,7 @@ class ConsistencyTrajectoryModel(nn.Module):
 
         x = torch.randn_like(x_shape).to(self.device) * self.sigma_max
         sampled_x.append(x)
-        x = self.cmt_wrapper(self.model, x, cond, torch.tensor([self.sigma_max]), torch.tensor([0]))
+        x = self.cmt_wrapper(self.model, x, cond, torch.tensor([self.sigma_max]).to(x.device), torch.tensor([0]).to(x.device))
         sampled_x.append(x)
         if return_seq:
             return sampled_x

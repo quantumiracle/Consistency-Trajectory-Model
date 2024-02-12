@@ -78,3 +78,20 @@ def rearrange_for_batch(x, batch_size):
 
     def get_params(self):
         return self.parameters()
+
+class Discriminator(nn.Module):
+    """ MLPNetwork with sigmoid activation"""
+    def __init__(self, input_dim, hidden_dim=100, num_hidden_layers=1, output_dim=1, dropout_rate=0.0):
+        super().__init__()
+        self.mlp = MLPNetwork(input_dim, hidden_dim, num_hidden_layers, output_dim, dropout_rate)
+        self.sigmoid = nn.Sigmoid()
+
+    def forward(self, x):
+        return self.sigmoid(self.mlp(x))
+
+    def get_device(self, device: torch.device):
+        self._device = device
+        self.mlp.to(device)
+    
+    def get_params(self):
+        return self.mlp.parameters()
