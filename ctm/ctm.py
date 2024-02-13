@@ -406,8 +406,8 @@ class ConsistencyTrajectoryModel(nn.Module):
         ctm_pred_clean = self.cmt_wrapper(self.target_model, ctm_pred, cond, s, jump_target)  # this one is better
         # ctm_pred_clean = self.cmt_wrapper(copy.deepcopy(self.model), ctm_pred, cond, s, jump_target)
         
-        # compute the cmt loss
-        cmt_loss = torch.nn.functional.mse_loss(ctm_pred_clean, ctm_target_clean)
+        # compute the ctm loss
+        ctm_loss = torch.nn.functional.mse_loss(ctm_pred_clean, ctm_target_clean)
 
         # # using previous code
         # ctm_pred = self.cmt_wrapper(self.model, x_t, cond, t, s)
@@ -417,9 +417,9 @@ class ConsistencyTrajectoryModel(nn.Module):
         #     ctm_target = self.cmt_wrapper(self.target_model, solver_target, cond, u, s)
 
         # # compute the cmt loss
-        # cmt_loss = torch.nn.functional.mse_loss(ctm_pred, ctm_target)
+        # ctm_loss = torch.nn.functional.mse_loss(ctm_pred, ctm_target)
 
-        return cmt_loss
+        return ctm_loss
 
 
     @torch.no_grad()   
@@ -673,6 +673,10 @@ class ConsistencyTrajectoryModel(nn.Module):
         """
         Alg. 3 in the paper of CTM (page 22)
         """
+        if isinstance(gamma, float):
+            gamma = torch.tensor([gamma])
+        gamma = gamma.to(self.device)
+        
         self.model.eval()
         if cond is not None:
             cond = cond.to(self.device)

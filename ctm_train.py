@@ -39,7 +39,7 @@ if __name__ == "__main__":
     )
     train_epochs = 2000
     # chose one of the following toy tasks: 'three_gmm_1D' 'uneven_two_gmm_1D' 'two_gmm_1D' 'single_gaussian_1D'
-    data_manager = DataGenerator('uneven_two_gmm_1D')
+    data_manager = DataGenerator('two_gmm_1D')
     samples, cond = data_manager.generate_samples(5000)
     samples = samples.reshape(-1, 1).to(device)
     pbar = tqdm(range(train_epochs))
@@ -94,6 +94,17 @@ if __name__ == "__main__":
         200, 
         train_epochs, 
         sampling_method='onestep', 
+        n_sampling_steps=n_sampling_steps,
+        x_range=[-4, 4], 
+        save_path='./plots/ctm'
+    )
+
+    plot_main_figure(
+        data_manager.compute_log_prob, 
+        cm, 
+        200, 
+        train_epochs, 
+        sampling_method='multistep', 
         n_sampling_steps=n_sampling_steps,
         x_range=[-4, 4], 
         save_path='./plots/ctm'

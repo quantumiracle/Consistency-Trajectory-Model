@@ -17,7 +17,7 @@ import torch
 from torch.distributions.normal import Normal
 
 
-def get_test_samples(model, n_samples, sampling_method, n_sampling_steps):
+def get_test_samples(model, n_samples, sampling_method, n_sampling_steps, gamma=0.):
     """
     Obtain the test samples from the given model, based on the specified sampling method and diffusion sampling type.
 
@@ -26,12 +26,13 @@ def get_test_samples(model, n_samples, sampling_method, n_sampling_steps):
         n_samples (int): Number of samples to be taken.
         sampling_method (str, optional): Method to be used for sampling ('multistep', 'onestep', or 'euler').
         n_sampling_steps (int, optional): Number of sampling steps. Defaults to 10.
+        gamma (float, optional): Value of gamma to be used for sampling. Defaults to 0 to avoid aggregated errors with increasing number of steps.
 
     Returns:
         test_samples (list): List of test samples obtained from the given model.
     """
     if sampling_method == 'multistep':
-        return model.sample_multistep(torch.zeros((n_samples, 1)), None, return_seq=True, n_sampling_steps=n_sampling_steps)
+        return model.ctm_gamma_sampler(torch.zeros((n_samples, 1)), None, gamma, return_seq=True, n_sampling_steps=n_sampling_steps)
     elif sampling_method == 'onestep':
         return model.sample_singlestep(torch.zeros((n_samples, 1)), None, return_seq=True)
     elif sampling_method == 'euler':
@@ -144,7 +145,7 @@ def plot_main_figure(
     # ax2.set_yticks('log')
     plt.subplots_adjust(hspace=0)
     os.makedirs(save_path, exist_ok=True)
-    plt.savefig(save_path + '/cm_' + sampling_method + f'_epochs_{train_epochs}.png', bbox_inches='tight', pad_inches=0.1)    
+    plt.savefig(save_path + '/ctm_' + sampling_method + f'_epochs_{train_epochs}.png', bbox_inches='tight', pad_inches=0.1)    
     
     print('Plot saved!')
     
