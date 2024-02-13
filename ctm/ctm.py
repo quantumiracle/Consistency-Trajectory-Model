@@ -181,7 +181,8 @@ class ConsistencyTrajectoryModel(nn.Module):
                 # Update the EMA weights for each parameter
                 target_param_data = target_state_dict[key].data
                 model_param_data = state_dict[key].data
-                target_state_dict[key].data.copy_((1 - self.ema_rate) * target_param_data + self.ema_rate * model_param_data)
+                # target_state_dict[key].data.copy_((1 - self.ema_rate) * target_param_data + self.ema_rate * model_param_data)
+                target_state_dict[key].data.copy_(self.ema_rate * target_param_data + (1 - self.ema_rate) * model_param_data)
 
         # You can optionally load the updated state dict into the target model, if necessary
         # self.target_model.load_state_dict(target_state_dict)

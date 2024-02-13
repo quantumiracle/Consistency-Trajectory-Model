@@ -15,7 +15,7 @@ update the weights of the consistency model and the diffusion model.
 if __name__ == "__main__":
 
     device = 'cuda'  # 'cpu'
-    n_sampling_steps = 20
+    n_sampling_steps = 10
     use_pretraining = False
     cm = ConsistencyTrajectoryModel(
         data_dim=1,
@@ -29,7 +29,7 @@ if __name__ == "__main__":
         n_discrete_t=18,
         conditioned=False,
         diffusion_lambda= 1,
-        use_gan=True,
+        use_gan=False,
         gan_lambda= 1,
         device=device,
         rho=7,
@@ -39,7 +39,7 @@ if __name__ == "__main__":
     )
     train_epochs = 2000
     # chose one of the following toy tasks: 'three_gmm_1D' 'uneven_two_gmm_1D' 'two_gmm_1D' 'single_gaussian_1D'
-    data_manager = DataGenerator('two_gmm_1D')
+    data_manager = DataGenerator('uneven_two_gmm_1D')
     samples, cond = data_manager.generate_samples(5000)
     samples = samples.reshape(-1, 1).to(device)
     pbar = tqdm(range(train_epochs))
