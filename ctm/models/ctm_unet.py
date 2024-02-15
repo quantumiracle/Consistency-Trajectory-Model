@@ -1,7 +1,7 @@
 from abc import abstractmethod
 
 import math
-
+import copy
 import numpy as np
 import torch as th
 import torch.nn as nn
@@ -270,7 +270,8 @@ class AttentionBlock(nn.Module):
         num_heads=1,
         num_head_channels=-1,
         use_checkpoint=False,
-        attention_type="flash",
+        # attention_type="flash",
+        attention_type="noflash", # modified by zihan, due to deprecated flash_attn
         encoder_channels=None,
         dims=2,
         channels_last=False,
@@ -341,7 +342,7 @@ class QKVFlashAttention(nn.Module):
         **kwargs,
     ) -> None:
         from einops import rearrange
-        from flash_attn.flash_attention import FlashAttention
+        from flash_attn.flash_attention import FlashAttention  # this function is deprecated in the latest version of flash_attn: https://github.com/Dao-AILab/flash-attention/issues/739
 
         assert batch_first
         factory_kwargs = {"device": device, "dtype": dtype}
@@ -590,11 +591,12 @@ class UNetModel(nn.Module):
         self.num_heads_upsample = num_heads_upsample
 
         time_embed_dim = model_channels * 4
-        self.time_embed = nn.Sequential(
+        self.time_embed_t = nn.Sequential(
             linear(model_channels, time_embed_dim),
             nn.SiLU(),
             linear(time_embed_dim, time_embed_dim),
         )
+        self.time_embed_s = copy.deepcopy(self.time_embed_t)
 
         if self.num_classes is not None:
             self.label_emb = nn.Embedding(num_classes, time_embed_dim)
@@ -753,7 +755,7 @@ class UNetModel(nn.Module):
         self.middle_block.apply(convert_module_to_f32)
         self.output_blocks.apply(convert_module_to_f32)
 
-    def forward(self, x, timesteps, y=None):
+    def forward(self, x, y=None, t=None, s=None):
         """
         Apply the model to an input batch.
 
@@ -762,16 +764,19 @@ class UNetModel(nn.Module):
         :param y: an [N] Tensor of labels, if class-conditional.
         :return: an [N x C x ...] Tensor of outputs.
         """
-        assert (y is not None) == (
-            self.num_classes is not None
-        ), "must specify y if and only if the model is class-conditional"
+        # assert (y is not None) == (
+        #     self.num_classes is not None
+        # ), "must specify y if and only if the model is class-conditional"
 
         hs = []
-        emb = self.time_embed(timestep_embedding(timesteps, self.model_channels))
+        emb_t = self.time_embed_t(timestep_embedding(t, self.model_channels))
+        emb_s = self.time_embed_t(timestep_embedding(s, self.model_channels))
 
         if self.num_classes is not None:
             assert y.shape == (x.shape[0],)
-            emb = emb + self.label_emb(y)
+            emb = self.label_emb(y) + emb_s + emb_t  # same order as ctm_mlp
+        else:
+            emb = emb_s + emb_t
 
         h = x.type(self.dtype)
         for module in self.input_blocks:

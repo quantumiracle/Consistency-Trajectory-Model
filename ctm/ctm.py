@@ -148,7 +148,8 @@ class ConsistencyTrajectoryModel(nn.Module):
                 attention_resolutions=tuple(attention_ds),
                 dropout=defaults["dropout"],
                 channel_mult=channel_mult,
-                num_classes=(NUM_CLASSES if defaults["class_cond"] else None),
+                # num_classes=(NUM_CLASSES if defaults["class_cond"] else None),
+                num_classes=(NUM_CLASSES if conditioned else None),
                 use_checkpoint=defaults["use_checkpoint"],
                 use_fp16=defaults["use_fp16"],
                 num_heads=defaults["num_heads"],
@@ -631,6 +632,11 @@ class ConsistencyTrajectoryModel(nn.Module):
         """
         c_skip, c_out, c_in = [append_dims(x, 2) for x in self.get_diffusion_scalings(t)]
         t = torch.log(t) / 4
+        if x_t.shape != c_in.shape:
+            c_in = c_in.view(-1, 1, 1, 1)
+            c_out = c_out.view(-1, 1, 1, 1)
+            c_skip = c_skip.view(-1, 1, 1, 1)
+
         model_output = self.model(x_t * c_in, cond, t, t)
         target = (x - c_skip * x_t) / c_out
         return (model_output - target).pow(2).mean()

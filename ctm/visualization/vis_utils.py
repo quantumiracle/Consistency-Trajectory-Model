@@ -149,3 +149,25 @@ def plot_main_figure(
     
     print('Plot saved!')
     
+
+def plot_images(
+    model, 
+    n_samples, 
+    sampling_method='euler',
+    n_sampling_steps = 10,
+    save_path='/home/moritz/code/cm_1D_Toy_Task/plots'
+):  
+    """
+    Plot the main figure for the given model and sampling method.
+    Args:
+    model (object): Model to be used for sampling (ConsistencyModel or Beso).
+    n_samples (int): Number of samples to be taken.
+    sampling_method (str, optional): Method to be used for sampling ('multistep', 'onestep', or 'euler'). Defaults to False.
+    n_sampling_steps (int, optional): Number of sampling steps. Defaults to 10.
+    save_path (str, optional): Directory to save the plot. Defaults to '/home/moritz/code/cm_1D_Toy_Task/plots'.
+
+    Raises ValueError: If the sampling_method is not one of the specified options ('multistep', 'onestep', or 'euler').
+    """
+    test_samples = get_test_samples(model, n_samples, sampling_method, n_sampling_steps)
+    test_samples = [x.detach().cpu().numpy() for x in test_samples]
+    test_samples = np.stack(test_samples, axis=1)
