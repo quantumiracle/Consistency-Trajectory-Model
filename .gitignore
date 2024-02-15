@@ -6,6 +6,7 @@ __pycache__/
 # C extensions
 *.so
 /plots
+tmp/
 # Distribution / packaging
 .Python
 build/

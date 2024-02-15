@@ -16,15 +16,15 @@ if __name__ == "__main__":
 
     device = 'cuda'  # 'cpu'
     n_sampling_steps = 10
-    use_pretraining = False
-    cm = ConsistencyTrajectoryModel(
+    use_pretraining = True
+    ctm = ConsistencyTrajectoryModel(
         data_dim=1,
         cond_dim=1,
         sampler_type='euler',
-        lr=1e-3,  # 4e-4
+        lr=4e-4,  # 1e-3
         sigma_data=0.5,
         sigma_min=0.05,
-        sigma_max=1, # 2
+        sigma_max=1, # 1; choose according to task data distribution
         solver_type='heun',
         n_discrete_t=18,
         conditioned=False,
@@ -49,15 +49,15 @@ if __name__ == "__main__":
     if use_pretraining:
         for i in range(train_epochs):
             cond = cond.reshape(-1, 1).to(device)        
-            diff_loss = cm.diffusion_train_step(samples, cond, i, train_epochs)
+            diff_loss = ctm.diffusion_train_step(samples, cond, i, train_epochs)
             pbar.set_description(f"Step {i}, Diff Loss: {diff_loss:.8f}")
             pbar.update(1)
         
-        cm.update_teacher_model()
+        ctm.update_teacher_model()
         
         plot_main_figure(
             data_manager.compute_log_prob, 
-            cm, 
+            ctm, 
             200, 
             train_epochs, 
             sampling_method='euler', 
@@ -70,8 +70,8 @@ if __name__ == "__main__":
     # Train the consistency trajectory model either simultanously with the diffusion model or after pretraining
     for i in range(train_epochs):
         cond = cond.reshape(-1, 1).to(device)        
-        loss, cmt_loss, diffusion_loss, gan_loss = cm.train_step(samples, cond, i, train_epochs)
-        pbar.set_description(f"Step {i}, Loss: {loss:.4f}, CMT Loss: {cmt_loss:.4f}, Diff Loss: {diffusion_loss:.4f}, GAN Loss: {gan_loss:.4f}")
+        loss, ctm_loss, diffusion_loss, gan_loss = ctm.train_step(samples, cond, i, train_epochs)
+        pbar.set_description(f"Step {i}, Loss: {loss:.4f}, CTM Loss: {ctm_loss:.4f}, Diff Loss: {diffusion_loss:.4f}, GAN Loss: {gan_loss:.4f}")
         pbar.update(1)
     
     # Plotting the results of the training
@@ -79,7 +79,7 @@ if __name__ == "__main__":
     if not use_pretraining:
         plot_main_figure(
                 data_manager.compute_log_prob, 
-                cm, 
+                ctm, 
                 200, 
                 train_epochs, 
                 sampling_method='euler', 
@@ -90,7 +90,7 @@ if __name__ == "__main__":
     
     plot_main_figure(
         data_manager.compute_log_prob, 
-        cm, 
+        ctm, 
         200, 
         train_epochs, 
         sampling_method='onestep', 
@@ -101,7 +101,7 @@ if __name__ == "__main__":
 
     plot_main_figure(
         data_manager.compute_log_prob, 
-        cm, 
+        ctm, 
         200, 
         train_epochs, 
         sampling_method='multistep', 

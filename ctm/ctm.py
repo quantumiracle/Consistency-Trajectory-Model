@@ -10,6 +10,7 @@ import einops
 
 from .utils import *
 from .models.ctm_mlp import ConsistencyTrajectoryNetwork, Discriminator
+from .models.ctm_unet import UNetModel
 
 
 def ema_eval_wrapper(func):
@@ -41,6 +42,35 @@ def ema_diffusion_eval_wrapper(func):
         return result
     return wrapper
 
+# https://github.com/openai/consistency_models/blob/e32b69ee436d518377db86fb2127a3972d0d8716/cm/script_util.py#L26C1-L53C1
+def model_and_diffusion_defaults():
+    """
+    Defaults for image training.
+    """
+    res = dict(
+        sigma_min=0.002,
+        sigma_max=80.0,
+        image_size=64,
+        num_channels=128,
+        num_res_blocks=2,
+        num_heads=4,
+        num_heads_upsample=-1,
+        num_head_channels=-1,
+        attention_resolutions="32,16,8",
+        channel_mult="",
+        dropout=0.0,
+        class_cond=False,
+        use_checkpoint=False,
+        use_scale_shift_norm=True,
+        resblock_updown=False,
+        use_fp16=False,
+        use_new_attention_order=False,
+        learn_sigma=False,
+        weight_schedule="karras",
+    )
+    return res
+
+
 
 class ConsistencyTrajectoryModel(nn.Module):
 
@@ -65,6 +95,7 @@ class ConsistencyTrajectoryModel(nn.Module):
             ema_rate: float = 0.999,
             n_sampling_steps: int = 10,
             sigma_sample_density_type: str = 'loglogistic',
+            datatype: str = '1d', # 1d or image
     ) -> None:
         super().__init__()
         self.use_gan = use_gan
@@ -72,17 +103,62 @@ class ConsistencyTrajectoryModel(nn.Module):
         self.diffusion_lambda = diffusion_lambda
         self.gan_lambda = gan_lambda
         self.n_discrete_t = n_discrete_t
-        self.model = ConsistencyTrajectoryNetwork(
-            x_dim=data_dim,
-            hidden_dim=256,
-            time_embed_dim=4,
-            cond_dim=cond_dim,
-            cond_mask_prob=0.0,
-            num_hidden_layers=4,
-            output_dim=data_dim,
-            dropout_rate=0.1,
-            cond_conditional=conditioned
-        ).to(device)
+        if datatype == '1d':
+            self.model = ConsistencyTrajectoryNetwork(
+                x_dim=data_dim,
+                hidden_dim=256,
+                time_embed_dim=4,
+                cond_dim=cond_dim,
+                cond_mask_prob=0.0,
+                num_hidden_layers=4,
+                output_dim=data_dim,
+                dropout_rate=0.1,
+                cond_conditional=conditioned
+            ).to(device)
+        else:  # image
+            image_size = data_dim
+            defaults = model_and_diffusion_defaults()
+            if defaults["channel_mult"] == "":
+                if image_size == 512:
+                    channel_mult = (0.5, 1, 1, 2, 2, 4, 4)
+                elif image_size == 256:
+                    channel_mult = (1, 1, 2, 2, 4, 4)
+                elif image_size == 128:
+                    channel_mult = (1, 1, 2, 3, 4)
+                elif image_size == 64:
+                    channel_mult = (1, 2, 3, 4)
+                elif image_size == 32: # added by zihan
+                    channel_mult = (1, 2, 4)
+                else:
+                    raise ValueError(f"unsupported image size: {image_size}")
+            else:
+                channel_mult = tuple(int(ch_mult) for ch_mult in channel_mult.split(","))
+
+            attention_ds = []
+            for res in defaults["attention_resolutions"].split(","):
+                attention_ds.append(image_size // int(res))
+
+            NUM_CLASSES =  10  # for cifar10
+            self.model=UNetModel(
+                image_size,
+                in_channels=3,
+                model_channels=defaults["num_channels"],
+                out_channels=(3 if not defaults["learn_sigma"] else 6),
+                num_res_blocks=defaults["num_res_blocks"],
+                attention_resolutions=tuple(attention_ds),
+                dropout=defaults["dropout"],
+                channel_mult=channel_mult,
+                num_classes=(NUM_CLASSES if defaults["class_cond"] else None),
+                use_checkpoint=defaults["use_checkpoint"],
+                use_fp16=defaults["use_fp16"],
+                num_heads=defaults["num_heads"],
+                num_heads_upsample=defaults["num_heads_upsample"],
+                num_head_channels=defaults["num_head_channels"],
+                use_scale_shift_norm=defaults["use_scale_shift_norm"],
+                resblock_updown=defaults["resblock_updown"],
+                use_new_attention_order=defaults["use_new_attention_order"],
+            ).to(device)
+
         # we need an ema version of the model for the consistency loss
         self.target_model = copy.deepcopy(self.model)
         for param in self.target_model.parameters():
@@ -104,7 +180,7 @@ class ConsistencyTrajectoryModel(nn.Module):
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=lr)
         self.epochs = 0
         self.discriminator = Discriminator(input_dim=data_dim, hidden_dim=256, num_hidden_layers=4, output_dim=1, dropout_rate=0.0).to(device)
-        self.discriminator_optimizer = torch.optim.Adam(self.discriminator.parameters(), lr=lr)
+        self.discriminator_optimizer = torch.optim.Adam(self.discriminator.parameters(), lr=0.002)
         self.criterion = nn.BCELoss()
         
     def diffusion_wrapper(self, model, x, cond, t, s):
@@ -188,7 +264,7 @@ class ConsistencyTrajectoryModel(nn.Module):
         # self.target_model.load_state_dict(target_state_dict)
 
     # use original
-    # def train_step(self, x, cond):
+    # def train_step(self, x, cond, train_step, max_steps):
     #     """
     #     Main training step method to compute the loss for the Consistency Trajectory Model.
     #     The loss consists of three parts: the consistency loss, the diffusion loss, and the GAN loss (optional).
@@ -219,12 +295,17 @@ class ConsistencyTrajectoryModel(nn.Module):
 
     #     # compute the GAN loss if chosen
     #     if self.use_gan:
-    #         gan_loss = self.gan_loss(x_t, cond, t)
+    #         gan_loss = self.gan_loss(x, x_t, cond, t)
+    #         if train_step < 0.3*max_steps: # warm-up, train discriminator only
+    #             gan_lambda = 0
+    #         else:
+    #             gan_lambda = self.gan_lambda
     #     else:
-    #         gan_loss = 0
-
+    #             gan_lambda = 0
+    #             gan_loss = 0
+    
     #     # compute the total loss
-    #     loss = cmt_loss + self.diffusion_lambda * diffusion_loss + self.gan_lambda * gan_loss
+    #     loss = cmt_loss + self.diffusion_lambda * diffusion_loss + gan_lambda * gan_loss
 
     #     # perform the backward pass
     #     self.optimizer.zero_grad()
@@ -554,8 +635,9 @@ class ConsistencyTrajectoryModel(nn.Module):
         target = (x - c_skip * x_t) / c_out
         return (model_output - target).pow(2).mean()
         
-    def update_teacher_model(self):
-        self.teacher_model.load_state_dict(self.target_model.state_dict())
+    def update_teacher_model(self):     
+        # self.teacher_model.load_state_dict(self.target_model.state_dict()) # target model is not updated in diffusion training
+        self.teacher_model.load_state_dict(self.model.state_dict())
         for param in self.teacher_model.parameters():
             param.requires_grad = False
         
@@ -676,7 +758,7 @@ class ConsistencyTrajectoryModel(nn.Module):
         if isinstance(gamma, float):
             gamma = torch.tensor([gamma])
         gamma = gamma.to(self.device)
-        
+
         self.model.eval()
         if cond is not None:
             cond = cond.to(self.device)
