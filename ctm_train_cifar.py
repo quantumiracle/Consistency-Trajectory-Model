@@ -54,7 +54,10 @@ if __name__ == "__main__":
     )
 
     # get image size from dataset
-    image_size = next(iter(train_dataloader))[0].shape[-1]
+    example_image = next(iter(train_dataloader))[0]  # (batch, channel, H, W)
+    image_size = example_image.shape[-1]
+    image_shape = example_image.shape[1:]  
+    # print('shape: ', image_shape)
 
     ctm = ConsistencyTrajectoryModel(
         data_dim=image_size,
@@ -91,8 +94,9 @@ if __name__ == "__main__":
         
         ctm.update_teacher_model()
         
-        plot_main_figure(
+        plot_images(
             ctm, 
+            image_shape,
             plot_n_samples,
             train_epochs, 
             sampling_method='euler', 
@@ -116,6 +120,7 @@ if __name__ == "__main__":
     if not use_pretraining:
             plot_images(
                 ctm, 
+                image_shape,
                 plot_n_samples,
                 train_epochs, 
                 sampling_method='euler', 
@@ -125,6 +130,7 @@ if __name__ == "__main__":
     
     plot_images(
         ctm, 
+        image_shape,
         plot_n_samples,
         train_epochs, 
         sampling_method='onestep', 
@@ -134,6 +140,7 @@ if __name__ == "__main__":
 
     plot_images(
         ctm, 
+        image_shape,
         plot_n_samples,
         train_epochs, 
         sampling_method='multistep', 

@@ -211,6 +211,12 @@ class ConsistencyTrajectoryModel(nn.Module):
         c_in = append_dims(c_in, x.ndim)
         c_out = append_dims(c_out, x.ndim)
         c_skip = append_dims(c_skip, x.ndim)
+
+        if len(x.shape) > 2 and len(t.shape) < 1:  # for image
+            # expand t to batch size
+            t = t.repeat(x.shape[0])
+            s = s.repeat(x.shape[0])
+
         diffusion_output = model(c_in * x, cond, t, s)
         scaled_output = c_out * diffusion_output + c_skip * x
         
@@ -234,7 +240,13 @@ class ConsistencyTrajectoryModel(nn.Module):
             t = t.unsqueeze(1)
         if len(s.shape) == 1:
             s = s.unsqueeze(1)
-        G_0 = (s / t) * x + (1 - s /t) * self.diffusion_wrapper(model, x, cond, t, s)
+
+        c1 = (s / t)
+        c2 = (1 - s /t)
+        c1 = append_dims(c1, x.ndim)
+        c2 = append_dims(c2, x.ndim)
+
+        G_0 =  c1 * x +  c2 * self.diffusion_wrapper(model, x, cond, t, s)
         
         return G_0
     
@@ -630,13 +642,8 @@ class ConsistencyTrajectoryModel(nn.Module):
         - model_output: the output tensor of the model for the input x_1, condition cond, and time t
         - target: the target tensor for the given input x, scaling tensors c_skip, c_out, c_in, and time t
         """
-        c_skip, c_out, c_in = [append_dims(x, 2) for x in self.get_diffusion_scalings(t)]
+        c_skip, c_out, c_in = [append_dims(c, x.ndim) for c in self.get_diffusion_scalings(t)]
         t = torch.log(t) / 4
-        if x_t.shape != c_in.shape:
-            c_in = c_in.view(-1, 1, 1, 1)
-            c_out = c_out.view(-1, 1, 1, 1)
-            c_skip = c_skip.view(-1, 1, 1, 1)
-
         model_output = self.model(x_t * c_in, cond, t, t)
         target = (x - c_skip * x_t) / c_out
         return (model_output - target).pow(2).mean()
@@ -780,8 +787,8 @@ class ConsistencyTrajectoryModel(nn.Module):
         sampled_x.append(x)
         # iterate over the remaining timesteps
         for i in trange(len(sigmas) - 1, disable=True):
-            # get thenew sigma value 
-            sigma_hat = sigmas[i+1] * torch.sqrt(1 - gamma ** 2)
+            # get the new sigma value 
+            sigma_hat = sigmas[i+1] * torch.sqrt(1 - gamma.squeeze() ** 2)
             # get the denoised value
             x_t_gamma = self.cmt_wrapper(self.model, x, cond, sigmas[i], sigma_hat)
             

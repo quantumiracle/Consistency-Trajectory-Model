@@ -40,6 +40,29 @@ def get_test_samples(model, n_samples, sampling_method, n_sampling_steps, gamma=
     else:
         raise ValueError('sampling_method must be either multistep, onestep or euler')
 
+def get_test_image_samples(model, image_shape, n_samples, sampling_method, n_sampling_steps, gamma=0.):
+    """
+    Obtain the test samples from the given model, based on the specified sampling method and diffusion sampling type.
+
+    Args:
+        model (object): Model to be used for sampling (ConsistencyModel or Beso).
+        n_samples (int): Number of samples to be taken.
+        sampling_method (str, optional): Method to be used for sampling ('multistep', 'onestep', or 'euler').
+        n_sampling_steps (int, optional): Number of sampling steps. Defaults to 10.
+        gamma (float, optional): Value of gamma to be used for sampling. Defaults to 0 to avoid aggregated errors with increasing number of steps.
+
+    Returns:
+        test_samples (list): List of test samples obtained from the given model.
+    """
+    if sampling_method == 'multistep':
+        return model.ctm_gamma_sampler(torch.zeros((n_samples,)+tuple(image_shape)), None, gamma, return_seq=False, n_sampling_steps=n_sampling_steps)
+    elif sampling_method == 'onestep':
+        return model.sample_singlestep(torch.zeros((n_samples,)+tuple(image_shape)), None, return_seq=False)
+    elif sampling_method == 'euler':
+        return model.sample_diffusion_euler(torch.zeros((n_samples,)+tuple(image_shape)), None, return_seq=False, n_sampling_steps=n_sampling_steps)
+    else:
+        raise ValueError('sampling_method must be either multistep, onestep or euler')
+
 
 
 def plot_main_figure(
@@ -152,6 +175,7 @@ def plot_main_figure(
 
 def plot_images(
     model, 
+    image_shape,
     n_samples, 
     train_epochs, 
     sampling_method='euler',
@@ -170,8 +194,8 @@ def plot_images(
 
     Raises ValueError: If the sampling_method is not one of the specified options ('multistep', 'onestep', or 'euler').
     """
-    test_samples = get_test_samples(model, n_samples, sampling_method, n_sampling_steps)
-    test_samples = [x.detach().cpu().numpy() for x in test_samples]
+    test_samples = get_test_image_samples(model, image_shape, n_samples, sampling_method, n_sampling_steps)
+    test_samples = [x.detach().cpu().numpy().transpose((1, 2, 0)) for x in test_samples]  # (C, H, W) to (H, W, C)
     # test_samples = np.stack(test_samples, axis=1)
     n_images = len(test_samples)
 
