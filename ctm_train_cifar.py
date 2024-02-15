@@ -21,6 +21,7 @@ if __name__ == "__main__":
     conditioned = False # whether to use conditional training
     n_sampling_steps = 10
     use_pretraining = True
+    plot_n_samples = 10
 
     train_epochs = 2000
     # chose one of the following toy tasks: 'three_gmm_1D' 'uneven_two_gmm_1D' 'two_gmm_1D' 'single_gaussian_1D'
@@ -87,16 +88,12 @@ if __name__ == "__main__":
                 cond = cond.reshape(-1, 1).to(device)  
                 diff_loss = ctm.diffusion_train_step(samples, cond, i, train_epochs)
                 pbar.set_description(f"Step {i}, Diff Loss: {diff_loss:.8f}")
-
-            # cond = cond.reshape(-1, 1).to(device)        
-            # diff_loss = ctm.diffusion_train_step(samples, cond, i, train_epochs)
-            # pbar.set_description(f"Step {i}, Diff Loss: {diff_loss:.8f}")
-            # pbar.update(1)
         
         ctm.update_teacher_model()
         
         plot_main_figure(
             ctm, 
+            plot_n_samples,
             train_epochs, 
             sampling_method='euler', 
             n_sampling_steps=n_sampling_steps,
@@ -119,6 +116,7 @@ if __name__ == "__main__":
     if not use_pretraining:
             plot_images(
                 ctm, 
+                plot_n_samples,
                 train_epochs, 
                 sampling_method='euler', 
                 n_sampling_steps=n_sampling_steps,
@@ -127,6 +125,7 @@ if __name__ == "__main__":
     
     plot_images(
         ctm, 
+        plot_n_samples,
         train_epochs, 
         sampling_method='onestep', 
         n_sampling_steps=n_sampling_steps,
@@ -135,6 +134,7 @@ if __name__ == "__main__":
 
     plot_images(
         ctm, 
+        plot_n_samples,
         train_epochs, 
         sampling_method='multistep', 
         n_sampling_steps=n_sampling_steps,

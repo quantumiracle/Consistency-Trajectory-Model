@@ -153,6 +153,7 @@ def plot_main_figure(
 def plot_images(
     model, 
     n_samples, 
+    train_epochs, 
     sampling_method='euler',
     n_sampling_steps = 10,
     save_path='/home/moritz/code/cm_1D_Toy_Task/plots'
@@ -162,6 +163,7 @@ def plot_images(
     Args:
     model (object): Model to be used for sampling (ConsistencyModel or Beso).
     n_samples (int): Number of samples to be taken.
+    train_epochs (int): Number of training epochs.
     sampling_method (str, optional): Method to be used for sampling ('multistep', 'onestep', or 'euler'). Defaults to False.
     n_sampling_steps (int, optional): Number of sampling steps. Defaults to 10.
     save_path (str, optional): Directory to save the plot. Defaults to '/home/moritz/code/cm_1D_Toy_Task/plots'.
@@ -170,4 +172,24 @@ def plot_images(
     """
     test_samples = get_test_samples(model, n_samples, sampling_method, n_sampling_steps)
     test_samples = [x.detach().cpu().numpy() for x in test_samples]
-    test_samples = np.stack(test_samples, axis=1)
+    # test_samples = np.stack(test_samples, axis=1)
+    n_images = len(test_samples)
+
+    fig, axs = plt.subplots(1, n_images, figsize=(n_images * 5, 5))
+
+    # When there is only one image, axs is not an array, so we need to check this
+    if n_images == 1:
+        axs = [axs]
+
+    # Plot each image in a horizontal line
+    for ax, img in zip(axs, test_samples):
+        ax.imshow(img)
+        ax.axis('off')
+
+    plt.tight_layout()
+
+    os.makedirs(save_path, exist_ok=True)
+    plt.savefig(save_path + '/ctm_' + sampling_method + f'_epochs_{train_epochs}.png', bbox_inches='tight', pad_inches=0.1)    
+    
+    print('Plot saved!')
+    
