@@ -5,7 +5,8 @@ from torchvision.transforms import ToTensor, RandomHorizontalFlip, Compose, Norm
 from torch.utils.data import DataLoader
 from ctm.ctm import ConsistencyTrajectoryModel
 from ctm.toy_tasks.data_generator import DataGenerator
-from ctm.visualization.vis_utils import plot_main_figure, plot_images
+from ctm.visualization.vis_utils import plot_main_figure, plot_images, sample_images
+from ctm.eval import eval
 from data import get_dataset
 
 
@@ -32,6 +33,7 @@ if __name__ == "__main__":
     evaluation = False
     drop_last = True # If `True`, drop the last batch if it is smaller than the batch size. Default is `True`; if `False`, the last batch will be padded with zeros and a mask will be returned.
     batch_size = 128
+    eval_fid = True
 
     train_dataloader = DataLoader(
         get_dataset('cifar10', train=True, evaluation=evaluation), 
@@ -91,6 +93,17 @@ if __name__ == "__main__":
                 cond = cond.reshape(-1, 1).to(device)  
                 diff_loss = ctm.diffusion_train_step(samples, cond, i, train_epochs)
                 pbar.set_description(f"Step {i}, Diff Loss: {diff_loss:.8f}")
+            if eval_fid:
+                sample_dir = './plots/eval'
+                sample_images(
+                ctm,
+                image_shape,
+                1000,
+                sampling_method='euler', 
+                n_sampling_steps=n_sampling_steps,
+                )
+                eval(sample_dir, data_name='cifar10', metric='fid', eval_num_samples=50000, delete=True, out=False)
+            
         
         ctm.update_teacher_model()
         

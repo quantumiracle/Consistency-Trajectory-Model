@@ -4,6 +4,7 @@ import numpy as np
 from torch.distributions import Normal
 import matplotlib.pyplot as plt
 from tqdm import tqdm
+import glob
 from scipy.interpolate import interpn
 from scipy.ndimage import gaussian_filter
 from scipy.interpolate import interp1d, interp2d
@@ -217,3 +218,32 @@ def plot_images(
     
     print('Plot saved!')
     
+# only sample images without plotting
+def sample_images(
+    model, 
+    image_shape,
+    n_samples, 
+    sampling_method='euler',
+    n_sampling_steps = 10,
+    save_path=None
+):  
+    """
+    Plot the main figure for the given model and sampling method.
+    Args:
+    model (object): Model to be used for sampling (ConsistencyModel or Beso).
+    n_samples (int): Number of samples to be taken.
+    train_epochs (int): Number of training epochs.
+    sampling_method (str, optional): Method to be used for sampling ('multistep', 'onestep', or 'euler'). Defaults to False.
+    n_sampling_steps (int, optional): Number of sampling steps. Defaults to 10.
+    save_path (str, optional): Directory to save the plot. Defaults to '/home/moritz/code/cm_1D_Toy_Task/plots'.
+
+    Raises ValueError: If the sampling_method is not one of the specified options ('multistep', 'onestep', or 'euler').
+    """
+    test_samples = get_test_image_samples(model, image_shape, n_samples, sampling_method, n_sampling_steps)
+    test_samples = [x.detach().cpu().numpy().transpose((1, 2, 0)) for x in test_samples]  # (C, H, W) to (H, W, C)
+    
+    arr = np.concatenate(test_samples, axis=0)
+    # save image array to .npz file
+    np.savez(glob.glob(os.path.join(save_path, 'sample.npz')), arr)
+    
+    return test_samples
