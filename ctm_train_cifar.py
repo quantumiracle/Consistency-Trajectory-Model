@@ -23,7 +23,7 @@ if __name__ == "__main__":
     use_pretraining = True
     plot_n_samples = 10
 
-    train_epochs = 2000
+    train_epochs = 2
     # chose one of the following toy tasks: 'three_gmm_1D' 'uneven_two_gmm_1D' 'two_gmm_1D' 'single_gaussian_1D'
     # data_manager = DataGenerator('two_gmm_1D')
     # samples, cond = data_manager.generate_samples(5000)
