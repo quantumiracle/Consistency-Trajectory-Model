@@ -9,7 +9,7 @@ import shutil
 import numpy as np
 from skimage.metrics import structural_similarity as SSIM_
 
-def calculate_inception_stats(image_path, detector_net, detector_kwargs, feature_dim, data_name='cifar10', num_samples=50000, batch_size=100, device=th.device('cuda')):
+def calculate_inception_stats(image_path, detector_net, detector_kwargs, evaluator, feature_dim, data_name='cifar10', num_samples=50000, batch_size=100, device=th.device('cuda')):
     if data_name.lower() == 'cifar10':
         print(f'Loading images from "{image_path}"...')
         mu = th.zeros([feature_dim], dtype=th.float64, device=device)
@@ -42,6 +42,35 @@ def calculate_inception_stats(image_path, detector_net, detector_kwargs, feature
         mu = mu.cpu().numpy()
         sigma = sigma.cpu().numpy()
         return mu, sigma
+
+    else:
+        filenames = glob.glob(os.path.join(image_path, '*.npz'))
+        imgs = []
+        for file in filenames:
+            try:
+                img = np.load(file)  # ['arr_0']
+                try:
+                    img = img['data']
+                except:
+                    img = img['arr_0']
+                imgs.append(img)
+            except:
+                pass
+        imgs = np.concatenate(imgs, axis=0)
+        os.makedirs(os.path.join(image_path, 'single_npz'), exist_ok=True)
+        np.savez(os.path.join(os.path.join(image_path, 'single_npz'), f'data'),
+                    imgs)  # , labels)
+        print("computing sample batch activations...")
+        sample_acts = evaluator.read_activations(
+            os.path.join(os.path.join(image_path, 'single_npz'), f'data.npz'))
+        print("computing/reading sample batch statistics...")
+        sample_stats, sample_stats_spatial = tuple(evaluator.compute_statistics(x) for x in sample_acts)
+        with open(os.path.join(os.path.join(image_path, 'single_npz'), f'stats'), 'wb') as f:
+            pickle.dump({'stats': sample_stats, 'stats_spatial': sample_stats_spatial}, f)
+        with open(os.path.join(os.path.join(image_path, 'single_npz'), f'acts'), 'wb') as f:
+            pickle.dump({'acts': sample_acts[0], 'acts_spatial': sample_acts[1]}, f)
+        return sample_acts, sample_stats, sample_stats_spatial
+
 
 # def calculate_similarity_metrics(image_path, num_samples=50000):
 #     files = glob.glob(os.path.join(image_path, 'sample*.npz'))
@@ -122,7 +151,7 @@ def eval(sample_dir, data_name='cifar10', metric='fid', eval_num_samples=50000, 
 
     if data_name == 'cifar10':
         if metric == 'fid':
-            mu, sigma = calculate_inception_stats(sample_dir, detector_net, detector_kwargs, feature_dim,
+            mu, sigma = calculate_inception_stats(sample_dir, detector_net, detector_kwargs, evaluator, feature_dim,
                                                         num_samples=eval_num_samples, data_name=data_name, device=device)
             print(mu.shape, sigma.shape)
             # logger.log(f"{self.step}-th step {sampler} sampler (NFE {step}) EMA {rate}"
@@ -140,7 +169,7 @@ def eval(sample_dir, data_name='cifar10', metric='fid', eval_num_samples=50000, 
             return compute_fid(mu, sigma)
         
     elif data_name == 'imagenet64':
-        sample_acts, sample_stats, sample_stats_spatial = calculate_inception_stats(sample_dir, detector_net, detector_kwargs, feature_dim, \
+        sample_acts, sample_stats, sample_stats_spatial = calculate_inception_stats(sample_dir, detector_net, detector_kwargs, evaluator, feature_dim, \
                                                         num_samples=eval_num_samples, data_name=data_name, device=device)
         print(f"Inception Score-{eval_num_samples // 1000}k:", evaluator.compute_inception_score(sample_acts[0]))
         print(f"FID-{eval_num_samples // 1000}k:", sample_stats.frechet_distance(ref_stats))

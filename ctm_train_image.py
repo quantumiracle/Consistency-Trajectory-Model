@@ -134,11 +134,10 @@ if __name__ == "__main__":
             loss, ctm_loss, diffusion_loss, gan_loss = ctm.train_step(samples, cond, i, train_epochs)
             pbar.set_description(f"Step {i}, Loss: {loss:.4f}, CTM Loss: {ctm_loss:.4f}, Diff Loss: {diffusion_loss:.4f}, GAN Loss: {gan_loss:.4f}")
             # pbar.update(1)
-            break
         if eval_fid:
             eval_model(ctm, image_shape, n_sampling_steps=n_sampling_steps)
 
-        if i % 1 == 0:   
+        if i % 5 == 0:   
             plot_images(
                 ctm, 
                 image_shape,
