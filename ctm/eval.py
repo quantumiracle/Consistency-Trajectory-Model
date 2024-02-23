@@ -86,6 +86,7 @@ def compute_fid(mu, sigma, ref_mu=None, ref_sigma=None, mu_ref=None, sigma_ref=N
     return fid
 
 
+# https://github.com/sony/ctm/blob/36c0f57d6cc0cff328f54852e0487e9e4e78f7ce/code/cm/train_util.py#L1105
 def eval(sample_dir, data_name='cifar10', metric='fid', eval_num_samples=50000, delete=False, out=False):
     print('Loading Inception-v3 model...')
     detector_url = 'https://api.ngc.nvidia.com/v2/models/nvidia/research/stylegan3/versions/1/files/metrics/inception-2015-12-05.pkl'
@@ -96,7 +97,11 @@ def eval(sample_dir, data_name='cifar10', metric='fid', eval_num_samples=50000, 
         detector_net = pickle.load(f).to(device)
     
     current_dir = os.getcwd() # Get the current working directory
-    ref_path=os.path.join(current_dir, 'author_ckpt/cifar10_test.npz')
+    if data_name == 'cifar10':
+        ref_path=os.path.join(current_dir, 'author_ckpt/cifar10_test.npz')
+    else:
+        ref_path=os.path.join(current_dir, 'author_ckpt/VIRTUAL_imagenet64_labeled.npz')
+
     print(ref_path)
     # with dnnlib.util.open_url(ref_path) as f:
     #     ref = dict(np.load(f))
@@ -105,6 +110,15 @@ def eval(sample_dir, data_name='cifar10', metric='fid', eval_num_samples=50000, 
     sigma_ref = ref['sigma']
 
     feature_dim = 2048 # for cifar10
+
+    config = tf.ConfigProto(
+        allow_soft_placement=True  # allows DecodeJpeg to run on CPU in Inception graph
+    )
+    config.gpu_options.allow_growth = True
+    config.gpu_options.per_process_gpu_memory_fraction = 0.1
+    evaluator = Evaluator(tf.Session(config=config), batch_size=100)
+    ref_acts = evaluator.read_activations(ref_path)
+    ref_stats, ref_stats_spatial = evaluator.read_statistics(ref_path, ref_acts)
 
     if data_name == 'cifar10':
         if metric == 'fid':
@@ -126,4 +140,11 @@ def eval(sample_dir, data_name='cifar10', metric='fid', eval_num_samples=50000, 
             return compute_fid(mu, sigma)
         
     elif data_name == 'imagenet64':
-        raise NotImplementedError
+        sample_acts, sample_stats, sample_stats_spatial = calculate_inception_stats(sample_dir, detector_net, detector_kwargs, feature_dim, \
+                                                        num_samples=eval_num_samples, data_name=data_name, device=device)
+        print(f"Inception Score-{eval_num_samples // 1000}k:", evaluator.compute_inception_score(sample_acts[0]))
+        print(f"FID-{eval_num_samples // 1000}k:", sample_stats.frechet_distance(ref_stats))
+        print(f"sFID-{eval_num_samples // 1000}k:", sample_stats_spatial.frechet_distance(ref_stats_spatial))
+        prec, recall = evaluator.compute_prec_recall(ref_acts[0], sample_acts[0])
+        print("Precision:", prec)
+        print("Recall:", recall)
