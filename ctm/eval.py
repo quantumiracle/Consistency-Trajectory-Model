@@ -124,3 +124,6 @@ def eval(sample_dir, data_name='cifar10', metric='fid', eval_num_samples=50000, 
             shutil.rmtree(sample_dir)
         if out:
             return compute_fid(mu, sigma)
+        
+    elif data_name == 'imagenet64':
+        raise NotImplementedError

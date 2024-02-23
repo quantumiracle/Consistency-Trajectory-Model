@@ -16,7 +16,7 @@ We train a diffusion model and the consistency model at the same time and iterat
 update the weights of the consistency model and the diffusion model.
 """
 
-def eval_model(model, image_shape, num_samples=1000, n_sampling_steps=10, sample_dir='./plots/eval'):
+def eval_model(model, dataset, image_shape, num_samples=1000, n_sampling_steps=10, sample_dir='./plots/eval'):
     sample_images(
     model,
     image_shape,
@@ -25,7 +25,7 @@ def eval_model(model, image_shape, num_samples=1000, n_sampling_steps=10, sample
     n_sampling_steps=n_sampling_steps,
     save_path=sample_dir,
     )
-    eval(sample_dir, data_name='cifar10', metric='fid', eval_num_samples=num_samples, delete=True, out=False)
+    eval(sample_dir, data_name=dataset, metric='fid', eval_num_samples=num_samples, delete=True, out=False)
             
 
 if __name__ == "__main__":
@@ -47,6 +47,7 @@ if __name__ == "__main__":
     drop_last = True # If `True`, drop the last batch if it is smaller than the batch size. Default is `True`; if `False`, the last batch will be padded with zeros and a mask will be returned.
     batch_size = 128
     eval_fid = False
+    plot_dir = f'./plots/ctm_{dataset}'
 
     train_dataloader = DataLoader(
         get_dataset(dataset, train=True, evaluation=evaluation), 
@@ -108,7 +109,7 @@ if __name__ == "__main__":
                 pbar.set_description(f"Step {i}, Diff Loss: {diff_loss:.8f}")
                 # break
             if eval_fid:
-                eval_model(ctm, image_shape, n_sampling_steps=n_sampling_steps)
+                eval_model(ctm, dataset, image_shape, n_sampling_steps=n_sampling_steps)
 
         
         ctm.update_teacher_model()
@@ -145,7 +146,7 @@ if __name__ == "__main__":
                 i, 
                 sampling_method='onestep', 
                 n_sampling_steps=n_sampling_steps,
-                save_path='./plots/ctm'
+                save_path=plot_dir
             )
 
             plot_images(
@@ -155,10 +156,10 @@ if __name__ == "__main__":
                 i, 
                 sampling_method='multistep', 
                 n_sampling_steps=n_sampling_steps,
-                save_path='./plots/ctm'
+                save_path=plot_dir
             )
 
-            torch.save(ctm.state_dict(), f'ckpts/ctm.pth')
+            torch.save(ctm.state_dict(), f'ckpts/ctm_{dataset}.pth')
 
     # Plotting the results of the training
     # We do this for the one-step and the multi-step sampler to compare the results
@@ -170,7 +171,7 @@ if __name__ == "__main__":
                 train_epochs, 
                 sampling_method='euler', 
                 n_sampling_steps=n_sampling_steps,
-                save_path='./plots/'
+                save_path=plot_dir
             )
 
     plot_images(
@@ -180,7 +181,7 @@ if __name__ == "__main__":
         train_epochs, 
         sampling_method='onestep', 
         n_sampling_steps=n_sampling_steps,
-        save_path='./plots/ctm'
+        save_path=plot_dir
     )
 
     plot_images(
@@ -190,7 +191,7 @@ if __name__ == "__main__":
         train_epochs, 
         sampling_method='multistep', 
         n_sampling_steps=n_sampling_steps,
-        save_path='./plots/ctm'
+        save_path=plot_dir
     )
  
             
