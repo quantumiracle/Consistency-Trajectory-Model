@@ -19,6 +19,7 @@ update the weights of the consistency model and the diffusion model.
 if __name__ == "__main__":
 
     device = 'cuda'  # 'cpu'
+    dataset = ['cifar10',  'imagenet64'][1]
     conditioned = False # whether to use conditional training
     n_sampling_steps = 10
     use_pretraining = True
@@ -36,7 +37,7 @@ if __name__ == "__main__":
     eval_fid = True
 
     train_dataloader = DataLoader(
-        get_dataset('cifar10', train=True, evaluation=evaluation), 
+        get_dataset(dataset, train=True, evaluation=evaluation), 
         batch_size=batch_size, 
         shuffle=not evaluation, 
         num_workers=16, 
@@ -46,7 +47,7 @@ if __name__ == "__main__":
     )
 
     val_dataloader = DataLoader(
-        get_dataset('cifar10', train=False, evaluation=evaluation), 
+        get_dataset(dataset, train=False, evaluation=evaluation), 
         batch_size=batch_size, 
         shuffle=not evaluation, 
         num_workers=16, 
