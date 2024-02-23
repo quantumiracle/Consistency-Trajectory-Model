@@ -1,4 +1,4 @@
-
+import torch
 from tqdm import tqdm
 from torchvision.datasets import CIFAR10
 from torchvision.transforms import ToTensor, RandomHorizontalFlip, Compose, Normalize
@@ -16,15 +16,27 @@ We train a diffusion model and the consistency model at the same time and iterat
 update the weights of the consistency model and the diffusion model.
 """
 
+def eval_model(model, image_shape, num_samples=1000, n_sampling_steps=10, sample_dir='./plots/eval'):
+    sample_images(
+    model,
+    image_shape,
+    num_samples,
+    sampling_method='euler', 
+    n_sampling_steps=n_sampling_steps,
+    save_path=sample_dir,
+    )
+    eval(sample_dir, data_name='cifar10', metric='fid', eval_num_samples=num_samples, delete=True, out=False)
+            
+
 if __name__ == "__main__":
 
     device = 'cuda'  # 'cpu'
     conditioned = False # whether to use conditional training
     n_sampling_steps = 10
-    use_pretraining = True
+    use_pretraining = False
     plot_n_samples = 10
 
-    train_epochs = 2
+    train_epochs = 2000
     # chose one of the following toy tasks: 'three_gmm_1D' 'uneven_two_gmm_1D' 'two_gmm_1D' 'single_gaussian_1D'
     # data_manager = DataGenerator('two_gmm_1D')
     # samples, cond = data_manager.generate_samples(5000)
@@ -33,7 +45,7 @@ if __name__ == "__main__":
     evaluation = False
     drop_last = True # If `True`, drop the last batch if it is smaller than the batch size. Default is `True`; if `False`, the last batch will be padded with zeros and a mask will be returned.
     batch_size = 128
-    eval_fid = True
+    eval_fid = False
 
     train_dataloader = DataLoader(
         get_dataset('cifar10', train=True, evaluation=evaluation), 
@@ -93,17 +105,10 @@ if __name__ == "__main__":
                 cond = cond.reshape(-1, 1).to(device)  
                 diff_loss = ctm.diffusion_train_step(samples, cond, i, train_epochs)
                 pbar.set_description(f"Step {i}, Diff Loss: {diff_loss:.8f}")
+                # break
             if eval_fid:
-                sample_dir = './plots/eval'
-                sample_images(
-                ctm,
-                image_shape,
-                1000,
-                sampling_method='euler', 
-                n_sampling_steps=n_sampling_steps,
-                )
-                eval(sample_dir, data_name='cifar10', metric='fid', eval_num_samples=50000, delete=True, out=False)
-            
+                eval_model(ctm, image_shape, n_sampling_steps=n_sampling_steps)
+
         
         ctm.update_teacher_model()
         
@@ -127,7 +132,33 @@ if __name__ == "__main__":
             loss, ctm_loss, diffusion_loss, gan_loss = ctm.train_step(samples, cond, i, train_epochs)
             pbar.set_description(f"Step {i}, Loss: {loss:.4f}, CTM Loss: {ctm_loss:.4f}, Diff Loss: {diffusion_loss:.4f}, GAN Loss: {gan_loss:.4f}")
             # pbar.update(1)
-    
+            # break
+        if eval_fid:
+            eval_model(ctm, image_shape, n_sampling_steps=n_sampling_steps)
+
+        if i % 5 == 0:   
+            plot_images(
+                ctm, 
+                image_shape,
+                plot_n_samples,
+                i, 
+                sampling_method='onestep', 
+                n_sampling_steps=n_sampling_steps,
+                save_path='./plots/ctm'
+            )
+
+            plot_images(
+                ctm, 
+                image_shape,
+                plot_n_samples,
+                i, 
+                sampling_method='multistep', 
+                n_sampling_steps=n_sampling_steps,
+                save_path='./plots/ctm'
+            )
+
+            torch.save(ctm.state_dict(), f'ckpts/ctm.pth')
+
     # Plotting the results of the training
     # We do this for the one-step and the multi-step sampler to compare the results
     if not use_pretraining:
@@ -140,7 +171,7 @@ if __name__ == "__main__":
                 n_sampling_steps=n_sampling_steps,
                 save_path='./plots/'
             )
-    
+
     plot_images(
         ctm, 
         image_shape,
@@ -160,6 +191,6 @@ if __name__ == "__main__":
         n_sampling_steps=n_sampling_steps,
         save_path='./plots/ctm'
     )
-
+ 
             
     print('done')

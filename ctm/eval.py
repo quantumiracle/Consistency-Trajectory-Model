@@ -94,10 +94,13 @@ def eval(sample_dir, data_name='cifar10', metric='fid', eval_num_samples=50000, 
 
     with dnnlib.util.open_url(detector_url, verbose=(0 == 0)) as f:
         detector_net = pickle.load(f).to(device)
-        
-    ref_path='/home/acf15618av/EighthArticleExperimentalResults/CIFAR10/author_ckpt/cifar10-32x32.npz'
-    with dnnlib.util.open_url(ref_path) as f:
-        ref = dict(np.load(f))
+    
+    current_dir = os.getcwd() # Get the current working directory
+    ref_path=os.path.join(current_dir, 'author_ckpt/cifar10_test.npz')
+    print(ref_path)
+    # with dnnlib.util.open_url(ref_path) as f:
+    #     ref = dict(np.load(f))
+    ref = dict(np.load(ref_path))
     mu_ref = ref['mu']
     sigma_ref = ref['sigma']
 
@@ -107,6 +110,7 @@ def eval(sample_dir, data_name='cifar10', metric='fid', eval_num_samples=50000, 
         if metric == 'fid':
             mu, sigma = calculate_inception_stats(sample_dir, detector_net, detector_kwargs, feature_dim,
                                                         num_samples=eval_num_samples, data_name=data_name, device=device)
+            print(mu.shape, sigma.shape)
             # logger.log(f"{self.step}-th step {sampler} sampler (NFE {step}) EMA {rate}"
             #             f" FID-{eval_num_samples // 1000}k: {compute_fid(mu, sigma, mu_ref=mu_ref, sigma_ref=sigma_ref)}")
             print(f"FID-{eval_num_samples // 1000}k: {compute_fid(mu, sigma, mu_ref=mu_ref, sigma_ref=sigma_ref)}")
