@@ -13,8 +13,7 @@ from matplotlib.collections import LineCollection
 from scipy.stats import gaussian_kde, norm
 from matplotlib.animation import FuncAnimation
 from matplotlib.collections import LineCollection
-
-import torch
+import time
 from torch.distributions.normal import Normal
 
 
@@ -239,11 +238,15 @@ def sample_images(
 
     Raises ValueError: If the sampling_method is not one of the specified options ('multistep', 'onestep', or 'euler').
     """
+    t0 = time.time()
     test_samples = get_test_image_samples(model, image_shape, n_samples, sampling_method, n_sampling_steps)
     test_samples = [x.detach().cpu().numpy().transpose((1, 2, 0)) for x in test_samples]  # (C, H, W) to (H, W, C)
     
-    arr = np.concatenate(test_samples, axis=0)
+    arr = np.array(test_samples)
     # save image array to .npz file
-    np.savez(glob.glob(os.path.join(save_path, 'sample.npz')), arr)
+    os.makedirs(save_path, exist_ok=True)
+    np.savez(os.path.join(save_path, 'sample.npz'), arr)
+    t1 = time.time()
+    print(f"It takes {t1-t0}s to generate {n_samples} samples.")
     
     return test_samples
