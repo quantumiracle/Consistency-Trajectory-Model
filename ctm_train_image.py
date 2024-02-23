@@ -31,7 +31,7 @@ def eval_model(model, dataset, image_shape, num_samples=1000, n_sampling_steps=1
 if __name__ == "__main__":
 
     device = 'cuda'  # 'cpu'
-    dataset = ['cifar10',  'imagenet64'][1]
+    dataset = ['cifar10',  'imagenet64'][0]
     conditioned = False # whether to use conditional training
     n_sampling_steps = 10
     use_pretraining = False
