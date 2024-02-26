@@ -31,7 +31,7 @@ def eval_model(model, dataset, image_shape, num_samples=1000, n_sampling_steps=1
 if __name__ == "__main__":
 
     device = 'cuda'  # 'cpu'
-    dataset = ['cifar10',  'imagenet64'][0]
+    dataset = ['cifar10',  'imagenet64'][1]
     conditioned = False # whether to use conditional training
     n_sampling_steps = 10
     use_pretraining = False
@@ -59,15 +59,15 @@ if __name__ == "__main__":
         persistent_workers=True,
     )
 
-    val_dataloader = DataLoader(
-        get_dataset(dataset, train=False, evaluation=evaluation), 
-        batch_size=batch_size, 
-        shuffle=not evaluation, 
-        num_workers=16, 
-        pin_memory=True, 
-        drop_last=drop_last,
-        persistent_workers=True,
-    )
+    # val_dataloader = DataLoader(
+    #     get_dataset(dataset, train=False, evaluation=evaluation), 
+    #     batch_size=batch_size, 
+    #     shuffle=not evaluation, 
+    #     num_workers=16, 
+    #     pin_memory=True, 
+    #     drop_last=drop_last,
+    #     persistent_workers=True,
+    # )
 
     # get image size from dataset
     example_image = next(iter(train_dataloader))[0]  # (batch, channel, H, W)

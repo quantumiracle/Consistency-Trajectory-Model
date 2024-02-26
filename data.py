@@ -35,7 +35,11 @@ def get_dataset(name, train, evaluation=False):
             torchvision.transforms.Normalize(mean=[0.485, 0.456, 0.406],  # Normalize the image
                                 std=[0.229, 0.224, 0.225])
         ])
-        return torchvision.datasets.ImageNet(root='tmp', train=train, download=True, transform=transform)
+        # https://pytorch.org/vision/stable/generated/torchvision.datasets.ImageNet.html
+        if train:
+            return torchvision.datasets.ImageNet(root='tmp', split='train', transform=transform)  # different from Cifar10
+        else:
+            return torchvision.datasets.ImageNet(root='tmp', split='val', transform=transform)
     
     
     raise ValueError(f'Dataset {name} not found')
