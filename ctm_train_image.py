@@ -32,7 +32,7 @@ if __name__ == "__main__":
 
     device = 'cuda'  # 'cpu'
     dataset = ['cifar10',  'imagenet64'][1]
-    conditioned = False # whether to use conditional training
+    conditioned = True # whether to use conditional training
     n_sampling_steps = 10
     use_pretraining = False
     plot_n_samples = 10
@@ -49,31 +49,54 @@ if __name__ == "__main__":
     eval_fid = False
     plot_dir = f'./plots/ctm_{dataset}'
 
-    train_dataloader = DataLoader(
-        get_dataset(dataset, train=True, evaluation=evaluation), 
-        batch_size=batch_size, 
-        shuffle=not evaluation, 
-        num_workers=16, 
-        pin_memory=True, 
-        drop_last=drop_last,
-        persistent_workers=True,
-    )
+    if dataset == 'imagenet64':  
+        from ctm.image_datasets import load_data
+        # https://github.com/openai/improved-diffusion/blob/main/improved_diffusion/image_datasets.py
+        train_dataloader = load_data(
+                data_dir='tmp/train/',  # ctm is not using downsampled Imagenet64 directly for training, but using ILSVRC2012
+                batch_size=batch_size,
+                image_size=64,
+                class_cond=conditioned,
+                data_name=dataset,
+                use_MPI=False,
+                # device_id = '1'
+            )
+        # val_dataloader = load_data(
+        #         data_dir='tmp/imagenet64/val',
+        #         batch_size=batch_size,
+        #         image_size=64,
+        #         class_cond=conditioned,
+        #     )
+        num_classes = 1000
+    elif dataset == 'cifar10':
+        train_dataloader = DataLoader(
+            get_dataset(dataset, train=True, evaluation=evaluation), 
+            batch_size=batch_size, 
+            shuffle=not evaluation, 
+            num_workers=16, 
+            pin_memory=True, 
+            drop_last=drop_last,
+            persistent_workers=True,
+        )
 
-    # val_dataloader = DataLoader(
-    #     get_dataset(dataset, train=False, evaluation=evaluation), 
-    #     batch_size=batch_size, 
-    #     shuffle=not evaluation, 
-    #     num_workers=16, 
-    #     pin_memory=True, 
-    #     drop_last=drop_last,
-    #     persistent_workers=True,
-    # )
+        # val_dataloader = DataLoader(
+        #     get_dataset(dataset, train=False, evaluation=evaluation), 
+        #     batch_size=batch_size, 
+        #     shuffle=not evaluation, 
+        #     num_workers=16, 
+        #     pin_memory=True, 
+        #     drop_last=drop_last,
+        #     persistent_workers=True,
+        # )
+        num_classes = 10
+    else:
+        raise NotImplementedError
 
     # get image size from dataset
-    example_image = next(iter(train_dataloader))[0]  # (batch, channel, H, W)
+    example_image = next(iter(train_dataloader))[0]  # batch data: (batch, channel, H, W); cond
     image_size = example_image.shape[-1]
     image_shape = example_image.shape[1:]  
-    # print('shape: ', image_shape)
+    print('shape: ', image_shape)
 
     ctm = ConsistencyTrajectoryModel(
         data_dim=image_size,
@@ -94,7 +117,8 @@ if __name__ == "__main__":
         ema_rate=0.999,
         n_sampling_steps=n_sampling_steps,
         use_teacher=use_pretraining,
-        datatype='image'
+        datatype='image',
+        num_classes=num_classes,
     )
 
     # if not simultanous_training:
@@ -128,9 +152,11 @@ if __name__ == "__main__":
     # Train the consistency trajectory model either simultanously with the diffusion model or after pretraining
     for i in range(train_epochs):
         pbar = tqdm(train_dataloader)
+        # import pdb; pdb.set_trace()
         for samples, cond in pbar:
             samples = samples.to(device)
-            cond = cond.reshape(-1, 1).to(device)     
+            cond = cond.reshape(-1, 1).to(device)  
+            print(samples.shape, cond, cond.shape)   
             loss, ctm_loss, diffusion_loss, gan_loss = ctm.train_step(samples, cond, i, train_epochs)
             pbar.set_description(f"Step {i}, Loss: {loss:.4f}, CTM Loss: {ctm_loss:.4f}, Diff Loss: {diffusion_loss:.4f}, GAN Loss: {gan_loss:.4f}")
             # pbar.update(1)

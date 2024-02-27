@@ -769,6 +769,7 @@ class UNetModel(nn.Module):
         # ), "must specify y if and only if the model is class-conditional"
         t = t.view(-1)
         s = s.view(-1)
+        y = y.view(-1)
         
         hs = []
         emb_t = self.time_embed_t(timestep_embedding(t, self.model_channels))

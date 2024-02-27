@@ -27,10 +27,10 @@ def get_dataset(name, train, evaluation=False):
             torchvision.transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
         ])
         return torchvision.datasets.CIFAR10(root='tmp', train=train, download=True, transform=transform)
-    elif name == 'imagenet64':
+    elif name == 'imagenet':
         transform = torchvision.transforms.Compose([
-            torchvision.transforms.Resize(64),  # Resize the image to 64x64 pixels
-            # torchvision.transforms.CenterCrop(224),  # Crop the image to 224x224 pixels around the center
+            torchvision.transforms.Resize(256),  # Resize the image to 64x64 pixels
+            torchvision.transforms.CenterCrop(224),  # Crop the image to 224x224 pixels around the center
             torchvision.transforms.ToTensor(),  # Convert the image to a tensor
             torchvision.transforms.Normalize(mean=[0.485, 0.456, 0.406],  # Normalize the image
                                 std=[0.229, 0.224, 0.225])
@@ -39,7 +39,7 @@ def get_dataset(name, train, evaluation=False):
         if train:
             return torchvision.datasets.ImageNet(root='tmp', split='train', transform=transform)  # different from Cifar10
         else:
-            return torchvision.datasets.ImageNet(root='tmp', split='val', transform=transform)
+            return torchvision.datasets.ImageNet(root='tmp', split='val', transform=transform)        
     
     
     raise ValueError(f'Dataset {name} not found')
