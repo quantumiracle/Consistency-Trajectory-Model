@@ -54,7 +54,7 @@ if __name__ == "__main__":
             'n_discrete_t': 40,
             'ema_rate': 0.999,
             'solver': 'heun',
-            'total_train_iters': 30000*2048/64,  # use different batchsize from paper
+            'total_train_iters': int(30000*2048/64),  # use different batchsize from paper
             'batch_size': 64, # larger batch memory is insufficient 
             'image_size': 64,
             'num_classes': 1000,
@@ -145,12 +145,11 @@ if __name__ == "__main__":
     # if not simultanous_training:
     # First pretrain the diffusion model and then train the consistency model
     if use_pretraining:
-        pbar = tqdm(train_dataloader)
         for i in range(hyperparameters[dataset]['total_train_iters']):
-            samples, cond = next(pbar)
+            samples, cond = next(train_dataloader)
             samples = samples.to(device)
             cond = cond.reshape(-1, 1).to(device)  
-            diff_loss = ctm.diffusion_train_step(samples, cond, i, train_epochs)
+            diff_loss = ctm.diffusion_train_step(samples, cond, i, hyperparameters[dataset]['total_train_iters'])
             pbar.set_description(f"Step {i}, Diff Loss: {diff_loss:.8f}")
             # break
         if eval_fid and i % eval_interval == 0:
@@ -173,13 +172,13 @@ if __name__ == "__main__":
     
 
     # Train the consistency trajectory model either simultanously with the diffusion model or after pretraining
-    pbar = tqdm(train_dataloader)
+    # data = iter(train_dataloader)
     for i in range(hyperparameters[dataset]['total_train_iters']):
-        samples, cond = next(pbar)
+        samples, cond = next(train_dataloader)
         samples = samples.to(device)
         cond = cond.reshape(-1, 1).to(device)  
-        loss, ctm_loss, diffusion_loss, gan_loss = ctm.train_step(samples, cond, i, train_epochs)
-        pbar.set_description(f"Step {i}, Loss: {loss:.4f}, CTM Loss: {ctm_loss:.4f}, Diff Loss: {diffusion_loss:.4f}, GAN Loss: {gan_loss:.4f}")
+        loss, ctm_loss, diffusion_loss, gan_loss = ctm.train_step(samples, cond, i, hyperparameters[dataset]['total_train_iters'])
+        print(f"Step {i}, Loss: {loss:.4f}, CTM Loss: {ctm_loss:.4f}, Diff Loss: {diffusion_loss:.4f}, GAN Loss: {gan_loss:.4f}")
         # pbar.update(1)
         # break
         if eval_fid and i % eval_interval == 0:
