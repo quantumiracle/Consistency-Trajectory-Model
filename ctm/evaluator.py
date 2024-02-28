@@ -248,7 +248,6 @@ class Evaluator:
             #for batch in tqdm(batches):
             batch = batches[k * self.batch_size:min((k+1) * self.batch_size, 50000)]
             batch = batch.astype(np.float32)
-            print(batch.shape)
             pred, spatial_pred = self.sess.run(
                 [self.pool_features, self.spatial_features], {self.image_input: batch}
             )

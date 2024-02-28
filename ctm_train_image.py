@@ -5,8 +5,8 @@ from torchvision.transforms import ToTensor, RandomHorizontalFlip, Compose, Norm
 from torch.utils.data import DataLoader
 from ctm.ctm import ConsistencyTrajectoryModel
 from ctm.toy_tasks.data_generator import DataGenerator
-from ctm.visualization.vis_utils import plot_main_figure, plot_images, sample_images
-from ctm.eval import eval
+from ctm.visualization.vis_utils import plot_main_figure, plot_images
+from ctm.eval import Eval
 from data import get_dataset
 
 
@@ -15,24 +15,11 @@ Discrete consistency distillation training of the consistency model on a toy tas
 We train a diffusion model and the consistency model at the same time and iteratively 
 update the weights of the consistency model and the diffusion model.
 """
-
-def eval_model(model, dataset, image_shape, num_samples=1000, n_sampling_steps=10, sample_dir='./plots/eval', conditioned=False, num_classes=10):
-    sample_images(
-    model,
-    image_shape,
-    num_samples,
-    sampling_method='euler', 
-    n_sampling_steps=n_sampling_steps,
-    save_path=sample_dir,
-    conditioned=conditioned,
-    num_classes=num_classes,
-    )
-    eval(sample_dir, data_name=dataset, metric='fid', eval_num_samples=num_samples, delete=True, out=False)
-            
+     
 
 if __name__ == "__main__":
 
-    device = 'cuda:3'  # 'cpu'
+    device = 'cuda:1'  # 'cpu'
     torch.cuda.set_device(device)
     print(torch.cuda.current_device())
 
@@ -65,7 +52,8 @@ if __name__ == "__main__":
     n_sampling_steps = 10
     use_pretraining = False
     plot_n_samples = 10
-    eval_interval = 1000
+    eval_interval = 10000
+    eval_num_samples = 50000  # at least 2048, otherwise imageinary part error: https://github.com/bioinf-jku/TTUR/issues/4
 
     evaluation = False
     drop_last = True # If `True`, drop the last batch if it is smaller than the batch size. Default is `True`; if `False`, the last batch will be padded with zeros and a mask will be returned.
@@ -119,6 +107,8 @@ if __name__ == "__main__":
     image_shape = example_image.shape[1:]  
     print('shape: ', image_shape)
 
+    if eval_fid: evaluator = Eval(data_name=dataset)
+
     ctm = ConsistencyTrajectoryModel(
         data_dim=image_size,
         cond_dim=1,
@@ -150,12 +140,11 @@ if __name__ == "__main__":
             samples = samples.to(device)
             cond = cond.reshape(-1, 1).to(device)  
             diff_loss = ctm.diffusion_train_step(samples, cond, i, hyperparameters[dataset]['total_train_iters'])
-            pbar.set_description(f"Step {i}, Diff Loss: {diff_loss:.8f}")
+            print(f"Step {i}/{hyperparameters[dataset]['total_train_iters']}, Diff Loss: {diff_loss:.8f}")
             # break
-        if eval_fid and i % eval_interval == 0:
-            eval_model(ctm, dataset, image_shape, n_sampling_steps=n_sampling_steps, conditioned=conditioned, num_classes=hyperparameters[dataset]['num_classes'])
+            if eval_fid and i % eval_interval == 0:
+                evaluator.get_scores(ctm, dataset, image_shape, eval_num_samples=eval_num_samples, n_sampling_steps=n_sampling_steps, conditioned=conditioned, num_classes=hyperparameters[dataset]['num_classes'])
 
-        
         ctm.update_teacher_model()
         
         plot_images(
@@ -178,11 +167,10 @@ if __name__ == "__main__":
         samples = samples.to(device)
         cond = cond.reshape(-1, 1).to(device)  
         loss, ctm_loss, diffusion_loss, gan_loss = ctm.train_step(samples, cond, i, hyperparameters[dataset]['total_train_iters'])
-        print(f"Step {i}, Loss: {loss:.4f}, CTM Loss: {ctm_loss:.4f}, Diff Loss: {diffusion_loss:.4f}, GAN Loss: {gan_loss:.4f}")
-        # pbar.update(1)
+        print(f"Step {i}/{hyperparameters[dataset]['total_train_iters']}, Loss: {loss:.4f}, CTM Loss: {ctm_loss:.4f}, Diff Loss: {diffusion_loss:.4f}, GAN Loss: {gan_loss:.4f}")
         # break
         if eval_fid and i % eval_interval == 0:
-            eval_model(ctm, dataset, image_shape, n_sampling_steps=n_sampling_steps, conditioned=conditioned, num_classes=hyperparameters[dataset]['num_classes'])
+            evaluator.get_scores(ctm, dataset, image_shape, eval_num_samples=eval_num_samples, n_sampling_steps=n_sampling_steps, conditioned=conditioned, num_classes=hyperparameters[dataset]['num_classes'])
 
         if i % eval_interval == 0:   
             plot_images(

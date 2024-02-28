@@ -31,14 +31,17 @@ def get_test_samples(model, n_samples, sampling_method, n_sampling_steps, gamma=
     Returns:
         test_samples (list): List of test samples obtained from the given model.
     """
+    model.eval()
     if sampling_method == 'multistep':
-        return model.ctm_gamma_sampler(torch.zeros((n_samples, 1)), None, gamma, return_seq=True, n_sampling_steps=n_sampling_steps)
+        samples = model.ctm_gamma_sampler(torch.zeros((n_samples, 1)), None, gamma, return_seq=True, n_sampling_steps=n_sampling_steps)
     elif sampling_method == 'onestep':
-        return model.sample_singlestep(torch.zeros((n_samples, 1)), None, return_seq=True)
+        samples =  model.sample_singlestep(torch.zeros((n_samples, 1)), None, return_seq=True)
     elif sampling_method == 'euler':
-        return model.sample_diffusion_euler(torch.zeros((n_samples, 1)), None, return_seq=True, n_sampling_steps=n_sampling_steps)
+        samples =  model.sample_diffusion_euler(torch.zeros((n_samples, 1)), None, return_seq=True, n_sampling_steps=n_sampling_steps)
     else:
         raise ValueError('sampling_method must be either multistep, onestep or euler')
+    model.train()
+    return samples
 
 def get_test_image_samples(model, image_shape, n_samples, sampling_method, n_sampling_steps, conditioned=False, num_classes=10, gamma=0.):
     """
@@ -54,19 +57,22 @@ def get_test_image_samples(model, image_shape, n_samples, sampling_method, n_sam
     Returns:
         test_samples (list): List of test samples obtained from the given model.
     """
+    model.eval()
     if conditioned:
         cond = torch.tensor(np.random.randint(0, num_classes, n_samples))
     else:
         cond = None
 
     if sampling_method == 'multistep':
-        return model.ctm_gamma_sampler(torch.zeros((n_samples,)+tuple(image_shape)), cond, gamma, return_seq=False, n_sampling_steps=n_sampling_steps)
+        samples = model.ctm_gamma_sampler(torch.zeros((n_samples,)+tuple(image_shape)), cond, gamma, return_seq=False, n_sampling_steps=n_sampling_steps)
     elif sampling_method == 'onestep':
-        return model.sample_singlestep(torch.zeros((n_samples,)+tuple(image_shape)), cond, return_seq=False)
+        samples =  model.sample_singlestep(torch.zeros((n_samples,)+tuple(image_shape)), cond, return_seq=False)
     elif sampling_method == 'euler':
-        return model.sample_diffusion_euler(torch.zeros((n_samples,)+tuple(image_shape)), cond, return_seq=False, n_sampling_steps=n_sampling_steps)
+        samples =  model.sample_diffusion_euler(torch.zeros((n_samples,)+tuple(image_shape)), cond, return_seq=False, n_sampling_steps=n_sampling_steps)
     else:
         raise ValueError('sampling_method must be either multistep, onestep or euler')
+    model.train()
+    return samples
 
 
 
@@ -201,10 +207,15 @@ def plot_images(
 
     Raises ValueError: If the sampling_method is not one of the specified options ('multistep', 'onestep', or 'euler').
     """
-    test_samples = get_test_image_samples(model, image_shape, n_samples, sampling_method, n_sampling_steps, conditioned, num_classes)
-    test_samples = [x.detach().cpu().numpy().transpose((1, 2, 0)) for x in test_samples]  # (C, H, W) to (H, W, C)
+    samples = get_test_image_samples(model, image_shape, n_samples, sampling_method, n_sampling_steps, conditioned, num_classes)
+    # test_samples = [x.detach().cpu().numpy().transpose((1, 2, 0)) for x in test_samples]  # (C, H, W) to (H, W, C)
     # test_samples = np.stack(test_samples, axis=1)
-    n_images = len(test_samples)
+    samples = ((samples + 1) * 127.5).clamp(0, 255).to(torch.uint8)
+    samples = samples.permute(0, 2, 3, 1)
+    samples = samples.contiguous()
+    samples = samples.detach().cpu().numpy()
+
+    n_images = samples.shape[0]
 
     fig, axs = plt.subplots(1, n_images, figsize=(n_images * 5, 5))
 
@@ -213,7 +224,7 @@ def plot_images(
         axs = [axs]
 
     # Plot each image in a horizontal line
-    for ax, img in zip(axs, test_samples):
+    for ax, img in zip(axs, samples):
         ax.imshow(img)
         ax.axis('off')
 
@@ -248,14 +259,33 @@ def sample_images(
     Raises ValueError: If the sampling_method is not one of the specified options ('multistep', 'onestep', or 'euler').
     """
     t0 = time.time()
-    test_samples = get_test_image_samples(model, image_shape, n_samples, sampling_method, n_sampling_steps, conditioned, num_classes)
-    test_samples = [x.detach().cpu().numpy().transpose((1, 2, 0)) for x in test_samples]  # (C, H, W) to (H, W, C)
-    
-    arr = np.array(test_samples)
+    sample_batch_size = 1000
+    if n_samples > sample_batch_size:  # larger number causes memory not sufficient
+        cnt = 0
+        samples = []
+        while cnt < n_samples:
+            if n_samples - cnt < sample_batch_size:
+                curr_samples = n_samples - cnt
+            else:
+                curr_samples = sample_batch_size
+            test_samples = get_test_image_samples(model, image_shape, curr_samples, sampling_method, n_sampling_steps, conditioned, num_classes)
+            samples.append(test_samples)
+
+            cnt += curr_samples
+        samples = torch.cat(samples, dim=0)
+    else:
+        samples = get_test_image_samples(model, image_shape, n_samples, sampling_method, n_sampling_steps, conditioned, num_classes)
+
+    # https://github.com/sony/ctm/blob/36c0f57d6cc0cff328f54852e0487e9e4e78f7ce/code/cm/train_util.py#L358
+    samples = ((samples + 1) * 127.5).clamp(0, 255).to(torch.uint8)
+    samples = samples.permute(0, 2, 3, 1)
+    samples = samples.contiguous()
+    samples = samples.detach().cpu().numpy()
+
     # save image array to .npz file
     os.makedirs(save_path, exist_ok=True)
-    np.savez(os.path.join(save_path, 'sample.npz'), arr)
+    np.savez(os.path.join(save_path, 'sample.npz'), samples)
     t1 = time.time()
     print(f"It takes {t1-t0}s to generate {n_samples} samples.")
-    
-    return test_samples
+
+    return samples

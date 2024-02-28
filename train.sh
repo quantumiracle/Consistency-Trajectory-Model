@@ -8,4 +8,4 @@ echo "Save as: " $DATE
 # mkdir -p log/$DATE
 
 
-nohup python -W ignore  ctm_train_image.py >> log/$DATE.log &        
+nohup python -W ignore  ctm_train_image.py >> log/fid_$DATE.log &        
