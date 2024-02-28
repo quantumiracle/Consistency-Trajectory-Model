@@ -116,7 +116,7 @@ class ConsistencyTrajectoryModel(nn.Module):
                 dropout_rate=0.1,
                 cond_conditional=conditioned
             ).to(device)
-        else:  # image
+        else:  # for image type follow CTM: https://github.com/sony/ctm/blob/36c0f57d6cc0cff328f54852e0487e9e4e78f7ce/code/cm/script_util.py#L311
             image_size = data_dim
             defaults = model_and_diffusion_defaults()
             if defaults["channel_mult"] == "":

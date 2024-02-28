@@ -8,6 +8,8 @@ import pickle
 import shutil
 import numpy as np
 from skimage.metrics import structural_similarity as SSIM_
+import tensorflow.compat.v1 as tf
+from ctm.evaluator import Evaluator
 
 def calculate_inception_stats(image_path, detector_net, detector_kwargs, evaluator, feature_dim, data_name='cifar10', num_samples=50000, batch_size=100, device=th.device('cuda')):
     if data_name.lower() == 'cifar10':
@@ -115,7 +117,7 @@ def compute_fid(mu, sigma, ref_mu=None, ref_sigma=None, mu_ref=None, sigma_ref=N
     return fid
 
 
-# https://github.com/sony/ctm/blob/36c0f57d6cc0cff328f54852e0487e9e4e78f7ce/code/cm/train_util.py#L1105
+# https://github.com/sony/ctm/blob/main/code/cm/train_util.py#L1105
 def eval(sample_dir, data_name='cifar10', metric='fid', eval_num_samples=50000, delete=False, out=False):
     print('Loading Inception-v3 model...')
     detector_url = 'https://api.ngc.nvidia.com/v2/models/nvidia/research/stylegan3/versions/1/files/metrics/inception-2015-12-05.pkl'
