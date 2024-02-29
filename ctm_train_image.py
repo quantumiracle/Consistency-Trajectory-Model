@@ -8,6 +8,7 @@ from ctm.toy_tasks.data_generator import DataGenerator
 from ctm.visualization.vis_utils import plot_main_figure, plot_images
 from ctm.eval import Eval
 from data import get_dataset
+from itertools import cycle
 
 
 """
@@ -102,6 +103,7 @@ if __name__ == "__main__":
         raise NotImplementedError
 
     # get image size from dataset
+    train_dataloader = cycle(train_dataloader)
     example_image = next(iter(train_dataloader))[0]  # batch data: (batch, channel, H, W); cond
     image_size = example_image.shape[-1]
     image_shape = example_image.shape[1:]  
