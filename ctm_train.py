@@ -1,6 +1,6 @@
 
 from tqdm import tqdm
-
+import torch
 from ctm.ctm import ConsistencyTrajectoryModel
 from ctm.toy_tasks.data_generator import DataGenerator
 from ctm.visualization.vis_utils import plot_main_figure
@@ -14,14 +14,14 @@ update the weights of the consistency model and the diffusion model.
 
 if __name__ == "__main__":
 
-    device = 'cuda'  # 'cpu'
+    device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
     n_sampling_steps = 10
     use_pretraining = True
     ctm = ConsistencyTrajectoryModel(
         data_dim=1,
         cond_dim=1,
-        sampler_type='euler',
-        lr=4e-4,  # 1e-3
+        sampler_type='ddim',  # 'euler
+        lr=1e-4,  # 1e-3
         sigma_data=0.5,
         sigma_min=0.05,
         sigma_max=1, # 1; choose according to task data distribution
@@ -37,7 +37,7 @@ if __name__ == "__main__":
         n_sampling_steps=n_sampling_steps,
         use_teacher=use_pretraining,
     )
-    train_epochs = 2000
+    train_epochs = 2003
     # chose one of the following toy tasks: 'three_gmm_1D' 'uneven_two_gmm_1D' 'two_gmm_1D' 'single_gaussian_1D'
     data_manager = DataGenerator('two_gmm_1D')
     samples, cond = data_manager.generate_samples(5000)
