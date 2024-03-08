@@ -20,7 +20,7 @@ update the weights of the consistency model and the diffusion model.
 
 if __name__ == "__main__":
 
-    device = 'cuda:1'  # 'cpu'
+    device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
     torch.cuda.set_device(device)
     print(torch.cuda.current_device())
 
