@@ -1,12 +1,12 @@
 from setuptools import setup, find_packages
 
 setup(
-    name="ctm_toy_task",
+    name="CTM",
     version="0.1",
-    description="Minimal unofficial implementation of Consistency Trajectory models on a 1D toy task in pytorch",
+    description="Minimal unofficial implementation of Consistency Trajectory models in pytorch",
     license="MIT",
-    author="Moritz Reuss",
-    url="https://github.com/mbreuss/ctm_toy_task",
+    author="quantumiracle",
+    url="https://github.com/quantumiracle/Consistency-Trajectory-Model",
     packages=find_packages(),
     install_requires=[
         "torch",
