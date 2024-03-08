@@ -16,10 +16,20 @@ pip install -e .
 ### Prepare Dataset
 
 1. Cifar10:
+
 It will be downloaded automatically under `tmp/` during training.
 
-2. Imagenet64:
-It requires to download from [Imagenet](https://www.image-net.org/) `ILSVRC2012_devkit_t12.tar.gz`, `ILSVRC2012_img_train.tar` and `ILSVRC2012_img_val.tar` under `tmp/` and extract to `tmp/train/`.
+3. Imagenet64:
+
+It requires to download from [Imagenet](https://www.image-net.org/) `ILSVRC2012_devkit_t12.tar.gz`, `ILSVRC2012_img_train.tar` and `ILSVRC2012_img_val.tar` under `tmp/` and extract `ILSVRC2012_img_train.tar` to `tmp/train/`.
+
+Notice for Imagenet64 it does not use downsampled Imagenet64 dataset but original ILSVRC2012 dataset (according to official CTM repo), the preprocessing before training will downsample the images.
+
+### Run
+```
+python ctm_train_image.py
+```
+
 
 ---
 
