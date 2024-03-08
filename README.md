@@ -19,7 +19,7 @@ pip install -e .
 
 It will be downloaded automatically under `tmp/` during training.
 
-3. Imagenet64:
+2. Imagenet64:
 
 It requires to download from [Imagenet](https://www.image-net.org/) `ILSVRC2012_devkit_t12.tar.gz`, `ILSVRC2012_img_train.tar` and `ILSVRC2012_img_val.tar` under `tmp/` and extract `ILSVRC2012_img_train.tar` to `tmp/train/`.
 
