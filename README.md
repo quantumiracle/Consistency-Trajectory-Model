@@ -1,6 +1,6 @@
 # Consistency Trajectory Models
 
-Code forked and modified from [mbreuss's repo](https://github.com/mbreuss/consistency_trajectory_models_toy_task), adding support for Imagenet64 and Cifar10.
+Code forked and modified from [mbreuss's repo](https://github.com/mbreuss/consistency_trajectory_models_toy_task), adding support for Cifar10 and Imagenet64.
 
 
 Minimal unofficial implementation of Consistency Trajectory models proposed in [paper_link](https://openreview.net/attachment?id=ymjI8feDTD&name=pdf). High chance that some implementation errors remain, since everything is implemented from the paper without code examples. 
@@ -12,6 +12,14 @@ Minimal unofficial implementation of Consistency Trajectory models proposed in [
 ```bash
 pip install -e .
 ```
+
+### Prepare Dataset
+
+1. Cifar10:
+It will be downloaded automatically under `tmp/` during training.
+
+2. Imagenet64:
+It requires to download from [Imagenet](https://www.image-net.org/) `ILSVRC2012_devkit_t12.tar.gz`, `ILSVRC2012_img_train.tar` and `ILSVRC2012_img_val.tar` under `tmp/` and extract to `tmp/train/`.
 
 ---
 
