@@ -96,6 +96,7 @@ class ConsistencyTrajectoryModel(nn.Module):
             n_sampling_steps: int = 10,
             sigma_sample_density_type: str = 'loglogistic',
             datatype: str = '1d', # 1d or image
+            num_classes: int = 10,
     ) -> None:
         super().__init__()
         self.use_gan = use_gan
@@ -115,7 +116,7 @@ class ConsistencyTrajectoryModel(nn.Module):
                 dropout_rate=0.1,
                 cond_conditional=conditioned
             ).to(device)
-        else:  # image
+        else:  # for image type follow CTM: https://github.com/sony/ctm/blob/36c0f57d6cc0cff328f54852e0487e9e4e78f7ce/code/cm/script_util.py#L311
             image_size = data_dim
             defaults = model_and_diffusion_defaults()
             if defaults["channel_mult"] == "":
@@ -138,7 +139,6 @@ class ConsistencyTrajectoryModel(nn.Module):
             for res in defaults["attention_resolutions"].split(","):
                 attention_ds.append(image_size // int(res))
 
-            NUM_CLASSES =  10  # for cifar10
             self.model=UNetModel(
                 image_size,
                 in_channels=3,
@@ -149,7 +149,7 @@ class ConsistencyTrajectoryModel(nn.Module):
                 dropout=defaults["dropout"],
                 channel_mult=channel_mult,
                 # num_classes=(NUM_CLASSES if defaults["class_cond"] else None),
-                num_classes=(NUM_CLASSES if conditioned else None),
+                num_classes=(num_classes if conditioned else None),
                 use_checkpoint=defaults["use_checkpoint"],
                 use_fp16=defaults["use_fp16"],
                 num_heads=defaults["num_heads"],
