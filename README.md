@@ -1,4 +1,6 @@
-# Consistency Trajectory Models Toy Task
+# Consistency Trajectory Models
+
+Code forked and modified from [mbreuss's repo](https://github.com/mbreuss/consistency_trajectory_models_toy_task), adding support for Imagenet64 and Cifar10.
 
 
 Minimal unofficial implementation of Consistency Trajectory models proposed in [paper_link](https://openreview.net/attachment?id=ymjI8feDTD&name=pdf). High chance that some implementation errors remain, since everything is implemented from the paper without code examples. 
